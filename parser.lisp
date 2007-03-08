@@ -64,9 +64,18 @@
          (kleene* ,f string :start start))))
     (t (error (format nil "grammar-* cannot process ~S" x)))))
 
+(defmacro grammar-exception (x y)
+  "a syntactic-exception; x but not also y"
+  `(multiple-value-bind (end value) ,x
+    (when end
+      (multiple-value-bind (e v) ,y
+        (declare (ignore v))
+        (when (not e)
+          (values end value))))))
+
 (defun parse-test (string &key (start 0))
-  "match := 'a' 'b'"
-  (grammar-and
+  "match := 'a' | 'b'"
+  (grammar-or
    (grammar-string "a")
    (grammar-string "b")))
 
@@ -82,6 +91,15 @@
   (grammar-and
    (grammar-string "a")
    (grammar-string "b")))
+
+(defun parse-test (string &key (start 0))
+  "match = {('a' | 'b' | 'c') - 'b'}"
+  (grammar-*
+   (grammar-exception
+    (grammar-or (grammar-string "a")
+                (grammar-string "b")
+                (grammar-string "c"))
+    (grammar-string "b"))))
 
 ;; Simple grammar
 (defun parse-token (string &key (start 0))
