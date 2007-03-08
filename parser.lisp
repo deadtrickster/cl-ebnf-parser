@@ -28,15 +28,20 @@
 
 ;; Construction macros
 (defmacro grammar-string (str)
-  `(if (starts-with string ,str :start start)
+  `(when (starts-with string ,str :start start)
     (values (+ start ,(length str)) ,str)))
 
 (defmacro grammar-and (first &rest rest)
   (if (null rest)
       first
-      `(multiple-value-bind (flag value end) ,first
-        (if flag
-            (multiple-value-bind (f v e) (grammar-and ))))))
+      `(multiple-value-bind (end value) ,first
+        (when end
+          (let ((start end))
+          (multiple-value-bind (e v) (grammar-and ,@rest)
+            (when e
+              (if (listp v)
+                  (values e (cons value v))
+                  (values e (list value v))))))))))
 
 
 (defmacro grammar-or (first &rest rest)
@@ -48,49 +53,49 @@
             (grammar-or ,@rest)))))
 
 
+(defmacro grammar-* (x)
+  (cond
+    ((null x) nil)
+    ((symbolp x) `(kleene* ',x string :start start))
+    ((listp x)
+     (let ((f (gensym)))
+       `(let ((,f (lambda (string &key (start 0))
+                   ,x)))
+         (kleene* ,f string :start start))))
+    (t (error (format nil "grammar-* cannot process ~S" x)))))
+
 (defun parse-test (string &key (start 0))
   "match := 'a' 'b'"
   (grammar-and
    (grammar-string "a")
    (grammar-string "b")))
 
-;; Todo:
+;; This is ambiguous; for now, 'a'* always matches...
 (defun parse-test (string &key (start 0))
   "match := 'a'* | 'b'"
   (grammar-or
    (grammar-* (grammar-string "a"))
    (grammar-string "b")))
 
+(defun parse-test (string &key (start 0))
+  "match := 'a', 'b'"
+  (grammar-and
+   (grammar-string "a")
+   (grammar-string "b")))
 
 ;; Simple grammar
-; token := "a" | "b"
-; list := "(" token+ ")"
-
 (defun parse-token (string &key (start 0))
   "token := 'a' | 'b'"
   (grammar-or
    (grammar-string "a")
    (grammar-string "b")))
 
-; First writing
 (defun parse-list (string &key (start 0))
-  "list := '(' token* ')'"
-  (if (starts-with string "(" :start start)
-      (multiple-value-bind (flag value end) (kleene* 'parse-token string :start (+ start (length "(")))
-        (if flag
-            (when (starts-with string ")" :start end)
-              (values t (list "(" value ")") (+ end (length ")"))))))))
-
-; Refactored
-(defun parse-list (string &key (start 0))
-  "list := '(' token* ')'"
-  (multiple-value-bind (e0 v0) (grammar-string "(")
-    (if e0
-      (multiple-value-bind (end value) (kleene* 'parse-token string :start (+ start (length "(")))
-        (if end
-            (when (starts-with string ")" :start end)
-              (values (+ end (length ")")) (list v0 value ")"))))))))
-
+  "list := '(', {token}, ')'"
+  (grammar-and
+   (grammar-string "(")
+   (grammar-* parse-token)
+   (grammar-string ")")))
 
 
 ;;;; Special conditions
