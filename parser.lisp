@@ -12,24 +12,24 @@
 ;; return a list of the children
 ;; return the end of the last child
 (defun kleene* (f string &key (start 0))
-  (multiple-value-bind (flag value end) (funcall f string :start start)
-    (if flag
-        (multiple-value-bind (f v e) (kleene* f string :start end)
-          (values f (cons value v) e))
-        (values t nil start))))
+  (multiple-value-bind (end value) (funcall f string :start start)
+    (if end
+        (multiple-value-bind (e v) (kleene* f string :start end)
+          (values e (cons value v)))
+        (values start nil))))
 
 (defun kleene+ (f string &key (start 0))
   "<rule>+ == <rule> <rule>*"
-  (multiple-value-bind (flag value end) (funcall f string :start start)
-    (if flag
-        (multiple-value-bind (f v e) (kleene* f string :start end)
-          (values f (cons value v) e))
+  (multiple-value-bind (end value) (funcall f string :start start)
+    (if end
+        (multiple-value-bind (e v) (kleene* f string :start end)
+          (values e (cons value v)))
         nil)))
 
 ;; Construction macros
 (defmacro grammar-string (str)
   `(if (starts-with string ,str :start start)
-    (values t ,str (+ start ,(length str)))))
+    (values (+ start ,(length str)) ,str)))
 
 (defmacro grammar-and (first &rest rest)
   (if (null rest)
@@ -42,17 +42,23 @@
 (defmacro grammar-or (first &rest rest)
   (if (null rest)
       first
-      `(multiple-value-bind (flag value end) ,first
-        (if flag
-            (values flag value end)
+      `(multiple-value-bind (end value) ,first
+        (if end
+            (values end value)
             (grammar-or ,@rest)))))
 
 
 (defun parse-test (string &key (start 0))
-  "token := 'a' | 'b'"
-;  (grammar-string "a"))
-  (grammar-or
+  "match := 'a' 'b'"
+  (grammar-and
    (grammar-string "a")
+   (grammar-string "b")))
+
+;; Todo:
+(defun parse-test (string &key (start 0))
+  "match := 'a'* | 'b'"
+  (grammar-or
+   (grammar-* (grammar-string "a"))
    (grammar-string "b")))
 
 
@@ -78,12 +84,12 @@
 ; Refactored
 (defun parse-list (string &key (start 0))
   "list := '(' token* ')'"
-  (multiple-value-bind (f0 v0 e0) (grammar-string "(")
-    (if f0
-      (multiple-value-bind (flag value end) (kleene* 'parse-token string :start (+ start (length "(")))
-        (if flag
+  (multiple-value-bind (e0 v0) (grammar-string "(")
+    (if e0
+      (multiple-value-bind (end value) (kleene* 'parse-token string :start (+ start (length "(")))
+        (if end
             (when (starts-with string ")" :start end)
-              (values t (list "(" value ")") (+ end (length ")")))))))))
+              (values (+ end (length ")")) (list v0 value ")"))))))))
 
 
 
