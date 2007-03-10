@@ -37,27 +37,32 @@
           (values e (cons value v)))
         nil)))
 
+;;
 ;; Construction macros
+;;
 
-;; In general, these should handle both normal functions ("rules") and other macros.
-;; In practice, only a couple do this properly.
+;; Provide a clean interface to rules expressed as either function names or macros
+(defmacro grammar-call (x)
+  (cond ((null x) (error "Cannot execute nil."))
+        ((symbolp x) `(,x string :start start))
+        ((listp x) x)
+        (t (error "Cannot call ~S" x))))
+
+(defmacro grammar-wrap (x)
+  (cond ((null x) (error "Cannot execute nil."))
+        ((symbolp x) (list 'quote x))
+        ((listp x) `(lambda (string &key (start 0)) ,x))
+        (t (error "Cannot call ~S" x))))
 
 (defmacro grammar-string (str)
   `(when (starts-with string ,str :start start)
     (values (+ start ,(length str)) ,str)))
 
 (defmacro grammar-optional (x)
-  `(multiple-value-bind (end value) (,x string :start start)
+  `(multiple-value-bind (end value) (grammar-call ,x)
     (if end
         (values end value)
         start)))
-
-(defmacro grammar-call (x)
-  (cond ((null x) (error "Cannot call nil function."))
-        ((symbolp x) `(,x string :start start))
-        ((listp x) x)
-        (t (error "Cannot call ~S" x))))
-
 
 (defmacro grammar-and (first &rest rest)
   (if (null rest)
@@ -74,44 +79,28 @@
 
 (defmacro grammar-or (first &rest rest)
   (if (null rest)
-      first
-      `(multiple-value-bind (end value) ,first
+      `(grammar-call ,first)
+      `(multiple-value-bind (end value) (grammar-call ,first)
         (if end
             (values end value)
             (grammar-or ,@rest)))))
 
-
 (defmacro grammar-n* (n x)
-  (cond
-    ((null x) nil)
-    ((symbolp x) `(match-n ,n ',x string :start start))
-    ((listp x)
-     (let ((f (gensym)))
-       `(let ((,f (lambda (string &key (start 0))
-                   ,x)))
-         (match-n ,n ,f string :start start))))
-    (t (error (format nil "grammar-n* cannot process ~S" x)))))
+  `(match-n ,n (grammar-wrap ,x) string :start start))
 
 (defmacro grammar-* (x)
-  (cond
-    ((null x) nil)
-    ((symbolp x) `(kleene* ',x string :start start))
-    ((listp x)
-     (let ((f (gensym)))
-       `(let ((,f (lambda (string &key (start 0))
-                   ,x)))
-         (kleene* ,f string :start start))))
-    (t (error (format nil "grammar-* cannot process ~S" x)))))
+  `(kleene* (grammar-wrap ,x) string :start start))
 
 (defmacro grammar-exception (x y)
   "a syntactic-exception; x but not also y"
-  `(multiple-value-bind (end value) ,x
+  `(multiple-value-bind (end value) (grammar-call ,x)
     (when end
-      (multiple-value-bind (e v) ,y
+      (multiple-value-bind (e v) (grammar-call ,y)
         (declare (ignore v))
         (when (not e)
           (values end value))))))
 
+;; Simple tests
 (defun parse-test (string &key (start 0))
   "match := 'a' | 'b'"
   (grammar-or
