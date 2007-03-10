@@ -55,8 +55,13 @@
         (t (error "Cannot call ~S" x))))
 
 (defmacro grammar-string (str)
-  `(when (starts-with string ,str :start start)
-    (values (+ start ,(length str)) ,str)))
+  (let ((l (length str)))
+    (cond ((= l 0) 'start)
+          ((= l 1) `(when (eq ,(char str 0) (char string start))
+                     (values (1+ start) ,str)))
+          (t 
+           `(when (starts-with string ,str :start start)
+             (values (+ start ,(length str)) ,str))))))
 
 (defmacro grammar-optional (x)
   `(multiple-value-bind (end value) (grammar-call ,x)

@@ -40,3 +40,6 @@
    (lambda (list)
      (destructuring-bind (x y) list
        (format nil "~{~A~}, ~A" x y)))))
+
+(grammar-rule parse-test
+  (grammar-string "abc"))
