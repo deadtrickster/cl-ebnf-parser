@@ -31,6 +31,13 @@
         nil
         (string= prefix string :start2 start :end2 end))))
 
+(defmacro grammar-char (c)
+  "match = 'c'"
+  `(when (and
+          (< start (length string))
+          (eq ,c (char string start)))
+    (values (1+ start) ,(string c))))
+
 (defmacro grammar-string (str)
   "match = 'str'"
   (let ((l (length str)))
