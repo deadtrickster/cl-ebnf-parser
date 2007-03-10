@@ -38,6 +38,13 @@
           (eq ,c (char string start)))
     (values (1+ start) ,(string c))))
 
+(defmacro grammar-chartable (&rest ctable)
+  "match = '(first ctable)' | '(second ctable)' | ..."
+  `(when (< start (length string))
+    (let ((c (char string start)))
+      (when (find c ,(format nil "~{~C~}" ctable))
+        (values (1+ start) (string c))))))
+
 (defmacro grammar-string (str)
   "match = 'str'"
   (let ((l (length str)))
