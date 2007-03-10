@@ -11,31 +11,12 @@
 
 ;; return a list of the children
 ;; return the end of the last child
-(defun match-n (n f string &key (start 0))
-  (if (> n 0)
-      (multiple-value-bind (end value) (funcall f string :start start)
-        (when end
-          (multiple-value-bind (e v) (match-n (1- n) f string :start end)
-            (when e
-              (if (car v)
-                  (values e (cons value v))
-                  (values e (list value)))))))
-      start))
-
 (defun kleene* (f string &key (start 0))
   (multiple-value-bind (end value) (funcall f string :start start)
     (if end
         (multiple-value-bind (e v) (kleene* f string :start end)
           (values e (cons value v)))
         start)))
-
-(defun kleene+ (f string &key (start 0))
-  "<rule>+ == <rule> <rule>*"
-  (multiple-value-bind (end value) (funcall f string :start start)
-    (if end
-        (multiple-value-bind (e v) (kleene* f string :start end)
-          (values e (cons value v)))
-        nil)))
 
 ;;
 ;; Construction macros
@@ -57,7 +38,9 @@
 (defmacro grammar-string (str)
   (let ((l (length str)))
     (cond ((= l 0) '(values start ""))
-          ((= l 1) `(when (eq ,(char str 0) (char string start))
+          ((= l 1) `(when (and
+                           (< start (length string))
+                           (eq ,(char str 0) (char string start)))
                      (values (1+ start) ,str)))
           (t 
            `(when (starts-with string ,str :start start)
@@ -90,8 +73,18 @@
             (values end value)
             (grammar-or ,@rest)))))
 
-(defmacro grammar-n* (n x)
-  `(match-n ,n (grammar-wrap ,x) string :start start))
+(defmacro grammar-n (n x)
+  (if (> n 0)
+      (let ((n1 (1- n)))
+      `(multiple-value-bind (end value) (grammar-call ,x)
+        (when end
+          (let ((start end))
+            (multiple-value-bind (e v) (grammar-n ,n1 ,x)
+              (when e
+                (if (car v)
+                    (values e (cons value v))
+                    (values e (list value)))))))))
+      'start))
 
 (defmacro grammar-* (x)
   `(kleene* (grammar-wrap ,x) string :start start))

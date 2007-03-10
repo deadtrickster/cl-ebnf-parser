@@ -4,12 +4,12 @@
 
 (grammar-rule bb
   (grammar-and
-   (grammar-n* 3 aa)
+   (grammar-n 3 aa)
    (grammar-string "B")))
 
 (grammar-rule cc
   (grammar-and
-   (grammar-n* 3 (grammar-optional aa))
+   (grammar-n 3 (grammar-optional aa))
    (grammar-string "C")))
 
 (grammar-rule dd
@@ -25,11 +25,11 @@
 
 (grammar-rule ff
   (grammar-and
-   (grammar-n* 3 aa)
-   (grammar-n* 3 (grammar-optional aa))
+   (grammar-n 3 aa)
+   (grammar-n 3 (grammar-optional aa))
    (grammar-string "F")))
 
 (grammar-rule gg
   (grammar-and
-   (grammar-n* 3 (grammar-* aa))
+   (grammar-n 3 (grammar-* aa))
    (grammar-string "D")))
