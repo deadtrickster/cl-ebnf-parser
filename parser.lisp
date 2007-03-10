@@ -100,6 +100,16 @@
         (when (not e)
           (values end value))))))
 
+;;
+;; Value-changing mechanism
+;;
+(defmacro grammar-func (x f)
+  "Apply f to the value of x"
+  `(multiple-value-bind (end value) (grammar-call ,x)
+    (when end
+      (values end (,f value)))))
+
+
 ;; Simple tests
 (defun parse-test (string &key (start 0))
   "match := 'a' | 'b'"
@@ -146,6 +156,19 @@
 (defmacro grammar-rule (name &rest body)
   `(defun ,name (string &key (start 0))
     ,@body))
+
+(grammar-rule parse-test
+  (grammar-func
+   (grammar-* (grammar-string "a"))
+   (lambda (x) (format nil "~{~A~}" x))))
+
+(grammar-rule parse-test
+  (grammar-func
+   (grammar-and (grammar-* (grammar-string "a"))
+                (grammar-string "b"))
+   (lambda (list)
+     (destructuring-bind (x y) list
+       (format nil "~{~A~}, ~A" x y))))))
 
 ;; Example from ISO EBNF spec, section 5.7
 (grammar-rule aa
