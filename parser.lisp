@@ -56,7 +56,7 @@
 
 (defmacro grammar-string (str)
   (let ((l (length str)))
-    (cond ((= l 0) 'start)
+    (cond ((= l 0) '(values start ""))
           ((= l 1) `(when (eq ,(char str 0) (char string start))
                      (values (1+ start) ,str)))
           (t 

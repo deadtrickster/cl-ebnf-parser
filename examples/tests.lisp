@@ -43,3 +43,6 @@
 
 (grammar-rule parse-test
   (grammar-string "abc"))
+
+(grammar-rule parse-test
+  (grammar-string ""))
