@@ -27,9 +27,8 @@
   "Does 'string' begin with 'prefix'?"
   (let ((end (+ start (length prefix)))
         (l (length string)))
-    (if (> end l)
-        nil
-        (string= prefix string :start2 start :end2 end))))
+    (unless (> end l)
+      (string= prefix string :start2 start :end2 end))))
 
 (defmacro grammar-char (c)
   "match = 'c'"
