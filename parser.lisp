@@ -7,15 +7,18 @@
     (:export "GRAMMAR-CHAR"
              "GRAMMAR-CHARTABLE"
              "GRAMMAR-STRING"
+             "GRAMMAR-OPTIONAL"
              "GRAMMAR-AND"
              "GRAMMAR-OR"
              "GRAMMAR-N"
              "GRAMMAR-*"
              "GRAMMAR-EXCEPTION"
              "GRAMMAR-FUNC"
-             "GRAMMAR-RULE"))
-    
-(in-package "EBNF-PARSER")  
+             "GRAMMAR-RULE"
+             "START"
+             "STRING"))
+
+(in-package "EBNF-PARSER")
 
 
 ;;; Internal utilities
