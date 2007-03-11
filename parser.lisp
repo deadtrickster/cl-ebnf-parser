@@ -1,8 +1,24 @@
 ;; A simple top-down, backtracking parser
 ;; Modelled after EBNF notation
 
+(defpackage "EBNF-PARSER"
+    (:nicknames "EBNF" "PARSER")
+    (:use "COMMON-LISP")
+    (:export "GRAMMAR-CHAR"
+             "GRAMMAR-CHARTABLE"
+             "GRAMMAR-STRING"
+             "GRAMMAR-AND"
+             "GRAMMAR-OR"
+             "GRAMMAR-N"
+             "GRAMMAR-*"
+             "GRAMMAR-EXCEPTION"
+             "GRAMMAR-FUNC"
+             "GRAMMAR-RULE"))
+    
+(in-package "EBNF-PARSER")  
 
-;; Internal utilities
+
+;;; Internal utilities
 
 
 (defmacro grammar-call (x)
@@ -20,7 +36,7 @@
         (t (error "Cannot call ~S" x))))
 
 
-;; Parser construction
+;;; Parser construction
 
 
 (defun starts-with (string prefix &key (start 0))
@@ -121,7 +137,7 @@
           (values end value))))))
 
 
-;; Output control
+;;; Output control
 
 
 (defmacro grammar-func (x f)
@@ -131,10 +147,10 @@
       (values end (,f value)))))
 
 
-;; Helper macros
+;;; Helper macros
 
 
-(defmacro grammar-rule (name &rest body)
+(defmacro grammar-rule (name &body body)
   "defun wrapper to simplify rule production"
   `(defun ,name (string &key (start 0))
     ,@body))
