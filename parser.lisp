@@ -16,9 +16,12 @@
              "GRAMMAR-FUNC"
              "GRAMMAR-RULE"
              "START"
-             "STRING"))
+             "STRING"
+             "*ENABLE-DEBUG*"))
 
 (in-package "EBNF-PARSER")
+
+(defparameter *enable-debug* nil "compile debug statements into grammar rules")
 
 
 ;;; Internal utilities
@@ -152,8 +155,21 @@
 
 ;;; Helper macros
 
-
 (defmacro grammar-rule (name &body body)
   "defun wrapper to simplify rule production"
-  `(defun ,name (string &key (start 0))
-    ,@body))
+  (if *enable-debug*
+      (let ((b body)
+            (n (string name))
+            (doc (car body)))
+        (if (stringp doc)
+            (let ((b2 (cdr b)))
+              `(defun ,name (string &key (start 0))
+                ,doc
+                (format t "~A:~A" ,n start)
+                ,@b2))
+            `(defun ,name (string &key (start 0))
+              (format t "~A:~A" ,n start)
+              ,@body)))
+      `(defun ,name (string &key (start 0))
+        ,@body)))
+

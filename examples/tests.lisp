@@ -1,5 +1,8 @@
+(use-package "EBNF-PARSER")
+
+
 ;; Simple tests
-(defun parse-test (string &key (start 0))
+(grammar-rule parse-test
   "match := 'a' | 'b'"
   (grammar-or
    (grammar-string "a")
