@@ -155,21 +155,36 @@
 
 ;;; Helper macros
 
+(defmacro grammar-rule-helper (name front body)
+  (if front
+      `(defun ,name (string &key (start 0))
+        ,@front
+        ,@body)
+      `(defun ,name (string &key (start 0))
+        ,@body)))
+
 (defmacro grammar-rule (name &body body)
   "defun wrapper to simplify rule production"
   (if *enable-debug*
-      (let ((b body)
-            (n (string name))
-            (doc (car body)))
-        (if (stringp doc)
-            (let ((b2 (cdr b)))
-              `(defun ,name (string &key (start 0))
-                ,doc
-                (format t "~A:~A" ,n start)
-                ,@b2))
-            `(defun ,name (string &key (start 0))
-              (format t "~A:~A" ,n start)
-              ,@body)))
-      `(defun ,name (string &key (start 0))
-        ,@body)))
+      ;; Identify a documentation string
+      (let* ((t1 (stringp (car body)))
+             (f1 (if t1
+                     (car body)
+                     nil))
+             (b1 (if t1
+                     (cdr body)
+                     body)))
+        ;; Identify a declare clause
+        (let* ((t2 (eq (caar b1) 'declare))
+               (f2 (cond ((and t2 f1)
+                          (cons f1 (list (car b1))))
+                         (t2 (list (car b1)))
+                         (f1 (list f1))
+                         (t nil)))
+               (b2 (if t2
+                       (cdr b1)
+                       b1)))
+          `(grammar-rule-helper ,name ,f2 ,(cons `(format t ,(format nil "~A:~A" "~5@A" name) start)
+                                                 b2))))
+      `(grammar-rule-helper ,name nil ,body)))
 
