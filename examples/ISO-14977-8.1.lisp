@@ -29,7 +29,7 @@
   (grammar-string ","))
 
 (grammar-rule defining-symbol
-  (grammar-string ";"))
+  (grammar-string "="))
 
 (grammar-rule definition-separator-symbol
   (grammar-or (grammar-string "|")
@@ -95,6 +95,10 @@
   (grammar-char #\Newline)) ; Slightly nonstandard
 
 ;; Skipping a couple other whitespace rules...
+
+;;;
+;;; Removal of unnecessary whitespace.
+;;;
 
 (grammar-rule terminal-character
   (grammar-or

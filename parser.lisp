@@ -184,7 +184,7 @@
                (b2 (if t2
                        (cdr b1)
                        b1)))
-          `(grammar-rule-helper ,name ,f2 ,(cons `(format t ,(format nil "~A:~A" "~5@A" name) start)
+          `(grammar-rule-helper ,name ,f2 ,(cons `(format t ,(format nil "~A:~A~A" "~5@A" name "~%") start)
                                                  b2))))
       `(grammar-rule-helper ,name nil ,body)))
 
