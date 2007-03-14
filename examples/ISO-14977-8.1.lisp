@@ -134,14 +134,18 @@
 (grammar-rule terminal-string
   "see 4.16"
   (grammar-or
-   (grammar-and first-quote-symbol
-                first-terminal-character
-                (grammar-* first-terminal-character)
-                first-quote-symbol)
-   (grammar-and second-quote-symbol
-                second-terminal-character
-                (grammar-* second-terminal-character)
-                second-quote-symbol)))
+   (grammar-func
+    (grammar-and first-quote-symbol
+                 first-terminal-character
+                 (grammar-* first-terminal-character)
+                 first-quote-symbol)
+    (lambda (x) `(:terminal-string ,(format nil "~A~{~A~}" (cadr x) (caddr x)))))
+   (grammar-func
+    (grammar-and second-quote-symbol
+                 second-terminal-character
+                 (grammar-* second-terminal-character)
+                 second-quote-symbol)
+    (lambda (x) `(:terminal-string ,(format nil "~A~{~A~}" (cadr x) (caddr x)))))))
 
 (grammar-rule gap-free-symbol
   "see 6.3"
@@ -234,7 +238,8 @@
 ;;; Abstract EBNF syntax
 ;;;
 
-(defun definitions-list () nil) ; Suppress warning
+;; Suppress warning
+(declaim (ftype function definitions-list))
 
 (grammar-rule optional-sequence
   "see 4.11"
@@ -253,8 +258,6 @@
   (grammar-and start-group-symbol
                definitions-list
                end-group-symbol))
-
-(unintern 'definitions-list) ; end suppress warning
 
 (grammar-rule empty-sequence
   "see 4.14"
@@ -310,3 +313,7 @@
   "see 4.2"
   (grammar-and syntax-rule
                (grammar-* syntax-rule)))
+
+;; Demos
+;(iso14977:syntax-abstract "test='ab c',\"g\'night\"|'c','d';")
+;(iso14977:syntax-abstract "test='a b','c d'|3*('e','f');")
