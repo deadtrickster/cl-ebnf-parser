@@ -139,13 +139,13 @@
                  first-terminal-character
                  (grammar-* first-terminal-character)
                  first-quote-symbol)
-    (lambda (x) `(:terminal-string ,(format nil "~A~{~A~}" (cadr x) (caddr x)))))
+    (lambda (x) (list (list :terminal-string (format nil "~A~{~A~}" (cadr x) (caddr x))))))
    (grammar-func
     (grammar-and second-quote-symbol
                  second-terminal-character
                  (grammar-* second-terminal-character)
                  second-quote-symbol)
-    (lambda (x) `(:terminal-string ,(format nil "~A~{~A~}" (cadr x) (caddr x)))))))
+    (lambda (x) (list (list :terminal-string (format nil "~A~{~A~}" (cadr x) (caddr x))))))))
 
 (grammar-rule gap-free-symbol
   "see 6.3"
@@ -183,8 +183,10 @@
 
 (grammar-rule meta-identifier
   "see 4.14"
-  (grammar-and letter
-               (grammar-* meta-identifier-character)))
+  (grammar-func (grammar-and letter
+                             (grammar-* meta-identifier-character))
+                (lambda (x) `(:meta-identifier ,(format nil "~A~{~A~}" (car x) (cdr x))))))
+  
 
 (grammar-rule special-sequence-character
   "see 4.20"
