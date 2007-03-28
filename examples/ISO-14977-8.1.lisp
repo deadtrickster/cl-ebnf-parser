@@ -7,7 +7,8 @@
   (:use "COMMON-LISP" "EBNF-PARSER")
   (:export "SYNTAX-PRINTING"
            "SYNTAX-UNCOMMENTED"
-           "SYNTAX-ABSTRACT")
+           "SYNTAX-ABSTRACT"
+           "SYNTAX")
   )
 
 (in-package "ISO-14977-8.1")
@@ -334,6 +335,15 @@ Strips all comments from the input"
   (grammar-and syntax-rule
                (grammar-* syntax-rule)))
 
+(grammar-rule syntax
+  "Full ISO-14977 EBNF syntax"
+  (multiple-value-bind (ep vp) (syntax-printing string :start start)
+    (when ep
+      (multiple-value-bind (ec vc) (syntax-uncommented vp :start 0)
+        (when ec
+          (syntax-abstract vc :start 0))))))
+
 ;; Demos
 ;(iso14977:syntax-abstract "test='ab c',\"g\'night\"|'c','d';")
 ;(iso14977:syntax-abstract "test='a b','c d'|3*('e','f');")
+;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd';")
