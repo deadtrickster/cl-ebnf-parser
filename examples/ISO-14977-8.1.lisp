@@ -236,12 +236,22 @@ Strips all non-printing characters from the input."
               commentless-symbol))
 
 (grammar-rule syntax-uncommented
-  "see 6.9"
-  (grammar-and (grammar-* bracketed-textual-comment)
-               commentless-symbol
-               (grammar-* bracketed-textual-comment)
-               (grammar-* (grammar-and commentless-symbol
-                                       bracketed-textual-comment))))
+  "see 6.9
+Strips all comments from the input"
+  (grammar-func
+   (grammar-and (grammar-* bracketed-textual-comment)
+                (grammar-func commentless-symbol
+                              (lambda (x) (declare (ignore x))
+                                      (subseq string start end)))
+                (grammar-* bracketed-textual-comment)
+                (grammar-* (grammar-and (grammar-func commentless-symbol
+                                                      (lambda (x) (declare (ignore x))
+                                                              (subseq string start end)))
+                                        (grammar-func (grammar-* bracketed-textual-comment)
+                                                      (lambda (x) (declare (ignore x))
+                                                              nil)))))
+   (lambda (x)
+     (format nil "~{~A~}" (cons (nth 1 x) (mapcar (lambda (x) (car x)) (nthcdr 3 x)))))))
 
 
 ;;;
