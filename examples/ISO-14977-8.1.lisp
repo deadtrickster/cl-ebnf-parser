@@ -159,12 +159,20 @@
   (grammar-chartable #\Space #\Tab #\Newline #| vertical tab, form feed |#))
 
 (grammar-rule syntax-printing
-  "see 6.5"
-  (grammar-and (grammar-* gap-separator)
-               gap-free-symbol
-               (grammar-* gap-separator)
-               (grammar-* (grammar-and gap-free-symbol
-                                       (grammar-* gap-separator)))))
+  "see 6.5
+Strips all non-printing characters from the input."
+  (grammar-func
+   (grammar-and (grammar-* gap-separator)
+                gap-free-symbol
+                (grammar-* gap-separator)
+                (grammar-* (grammar-and (grammar-func gap-free-symbol
+                                                      (lambda (x) (declare (ignore x))
+                                                              (subseq string start ebnf::end)))
+                                        (grammar-func (grammar-* gap-separator)
+                                                      (lambda (x) (declare (ignore x))
+                                                              nil)))))
+   (lambda (x)
+     (format nil "~{~A~}" (cons (nth 1 x) (mapcar (lambda (x) (car x)) (nthcdr 3 x)))))))
 
 
 ;;;

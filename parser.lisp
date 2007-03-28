@@ -16,6 +16,7 @@
              "GRAMMAR-FUNC"
              "GRAMMAR-RULE"
              "START"
+             "END"
              "STRING"
              "*ENABLE-DEBUG*"))
 
