@@ -27,15 +27,24 @@
         (values (1+ start) (string c))))))
 
 (grammar-rule concatenate-symbol
-  (grammar-string ","))
+  (grammar-func
+   (grammar-string ",")
+   (lambda (x) (declare (ignore x))
+           :and)))
 
 (grammar-rule defining-symbol
-  (grammar-string "="))
+  (grammar-func
+   (grammar-string "=")
+   (lambda (x) (declare (ignore x))
+           :=)))
 
 (grammar-rule definition-separator-symbol
-  (grammar-or (grammar-string "|")
-              (grammar-string "/")
-              (grammar-string "!")))
+  (grammar-func
+   (grammar-or (grammar-string "|")
+               (grammar-string "/")
+               (grammar-string "!"))
+   (lambda (x) (declare (ignore x))
+           :or)))
 
 (grammar-rule end-comment-symbol
   (grammar-string "*)"))
@@ -140,13 +149,15 @@
                  first-terminal-character
                  (grammar-* first-terminal-character)
                  first-quote-symbol)
-    (lambda (x) (list (list :terminal-string (format nil "~A~{~A~}" (cadr x) (caddr x))))))
+    (lambda (x) (declare (ignore x))
+            (subseq string (1+ start) (1- end))))
    (grammar-func
     (grammar-and second-quote-symbol
                  second-terminal-character
                  (grammar-* second-terminal-character)
                  second-quote-symbol)
-    (lambda (x) (list (list :terminal-string (format nil "~A~{~A~}" (cadr x) (caddr x))))))))
+    (lambda (x) (declare (ignore x))
+            (subseq string (1+ start) (1- end))))))
 
 (grammar-rule gap-free-symbol
   "see 6.3"
@@ -194,7 +205,8 @@ Strips all non-printing characters from the input."
   "see 4.14"
   (grammar-func (grammar-and letter
                              (grammar-* meta-identifier-character))
-                (lambda (x) `(:meta-identifier ,(format nil "~A~{~A~}" (car x) (cdr x))))))
+                (lambda (x) (declare (ignore x))
+                        (subseq string start end))))
   
 
 (grammar-rule special-sequence-character
@@ -264,15 +276,22 @@ Strips all comments from the input"
 
 (grammar-rule optional-sequence
   "see 4.11"
-  (grammar-and start-option-symbol
-               definitions-list
-               end-option-symbol))
+  (grammar-func
+   (grammar-and start-option-symbol
+                definitions-list
+                end-option-symbol)
+   (lambda (x)
+     (list (list :opt (caaadr x))))))
 
 (grammar-rule repeated-sequence
   "see 4.12"
-  (grammar-and start-repeat-symbol
-               definitions-list
-               end-repeat-symbol))
+  (grammar-func
+   (grammar-and start-repeat-symbol
+                definitions-list
+                end-repeat-symbol)
+   (lambda (x)
+     (list (list :* (caaadr x))))))
+  
 
 (grammar-rule grouped-sequence
   "see 4.13"
@@ -347,3 +366,4 @@ Strips all comments from the input"
 ;(iso14977:syntax-abstract "test='ab c',\"g\'night\"|'c','d';")
 ;(iso14977:syntax-abstract "test='a b','c d'|3*('e','f');")
 ;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd';")
+;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b'")
