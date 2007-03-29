@@ -281,7 +281,7 @@ Strips all comments from the input"
                 definitions-list
                 end-option-symbol)
    (lambda (x)
-     (list (list :opt (caaadr x))))))
+     (list (list 'grammar-optional (caadr x))))))
 
 (grammar-rule repeated-sequence
   "see 4.12"
@@ -290,14 +290,17 @@ Strips all comments from the input"
                 definitions-list
                 end-repeat-symbol)
    (lambda (x)
-     (list (list :* (caaadr x))))))
+     (list (list 'grammar-* (caadr x))))))
   
 
 (grammar-rule grouped-sequence
   "see 4.13"
-  (grammar-and start-group-symbol
-               definitions-list
-               end-group-symbol))
+  (grammar-func
+   (grammar-and start-group-symbol
+                definitions-list
+                end-group-symbol)
+   (lambda (x)
+     (cadr x))))
 
 (grammar-rule empty-sequence
   "see 4.14"
@@ -310,15 +313,23 @@ Strips all comments from the input"
               repeated-sequence
               grouped-sequence
               meta-identifier
-              terminal-string
+              (grammar-func terminal-string
+                            (lambda (x)
+                              (list (list 'grammar-string x))))
               special-sequence
               empty-sequence))
 
 (grammar-rule syntactic-factor
   "see 4.8"
-  (grammar-and (grammar-optional (grammar-and ebnf-integer
-                                              repetition-symbol))
-               syntactic-primary))
+  (grammar-func
+   (grammar-and (grammar-optional (grammar-and ebnf-integer
+                                               repetition-symbol))
+                syntactic-primary)
+   (lambda (x)
+     (if (car x)
+         (list 'grammar-n (read-from-string (caaar x))
+               (cadr x))
+         (cadr x)))))
 
 (grammar-rule syntactic-exception
   "see 4.7"
@@ -332,27 +343,52 @@ Strips all comments from the input"
 
 (grammar-rule single-definition
   "see 4.5"
-  (grammar-and syntactic-term
-               (grammar-* (grammar-and concatenate-symbol
-                                       syntactic-term))))
+  (grammar-func
+   (grammar-and syntactic-term
+                (grammar-* (grammar-func
+                            (grammar-and concatenate-symbol
+                                         syntactic-term)
+                            (lambda (x)
+                              (cdr x)))))
+   (lambda (x)
+     (if (< 1 (length x))
+         (list (cons 'grammar-and (mapcar (lambda (x) (car x)) x)))
+         (car x)))))
 
 (grammar-rule definitions-list
   "see 4.4"
-  (grammar-and single-definition
-               (grammar-* (grammar-and definition-separator-symbol
-                                       single-definition))))
+  (grammar-func
+   (grammar-and single-definition
+                (grammar-* (grammar-func (grammar-and definition-separator-symbol
+                                                      single-definition)
+                                         (lambda (x)
+                                           (cdr x)))))
+   (lambda (x)
+     (if (< 1 (length x))
+         (list (cons 'grammar-or (mapcar (lambda (x) (car x)) x)))
+         (car x)))))
 
 (grammar-rule syntax-rule
   "see 4.3"
-  (grammar-and meta-identifier
-               defining-symbol
-               definitions-list
-               terminator-symbol))
+  (grammar-func
+   (grammar-and meta-identifier
+                defining-symbol
+                definitions-list
+                terminator-symbol)
+   (lambda (x)
+     (list 'grammar-rule (read-from-string (car x))
+           (subseq string start end)
+           (car (nth 2 x))))))
 
 (grammar-rule syntax-abstract
   "see 4.2"
-  (grammar-and syntax-rule
-               (grammar-* syntax-rule)))
+  (grammar-func
+   (grammar-and syntax-rule
+                (grammar-* syntax-rule))
+   (lambda (x)
+     (if (< 1 (length x))
+         (cons 'progn x)
+         (car x)))))
 
 (grammar-rule syntax
   "Full ISO-14977 EBNF syntax"
@@ -363,7 +399,4 @@ Strips all comments from the input"
           (syntax-abstract vc :start 0))))))
 
 ;; Demos
-;(iso14977:syntax-abstract "test='ab c',\"g\'night\"|'c','d';")
-;(iso14977:syntax-abstract "test='a b','c d'|3*('e','f');")
-;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd';")
 ;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b'")
