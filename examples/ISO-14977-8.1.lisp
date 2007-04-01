@@ -1,3 +1,6 @@
+;;;; Copyright (C) 2007, Daniel Herring.  All rights reserved.
+;;;; See the included COPYING.txt
+
 ;; Goal:  Provide a frontend that auto-generates the parser from raw ISO 14977 EBNF text.
 ;; e.g. "rule = (* doc *) body ;" => `(defun ,rule (...) ",doc" ,body)
 

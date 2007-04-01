@@ -1,3 +1,6 @@
+;;;; Copyright (C) 2007, Daniel Herring.  All rights reserved.
+;;;; See the included COPYING.txt
+
 ;; A simple top-down, backtracking parser
 ;; Modelled after EBNF notation
 
