@@ -325,13 +325,15 @@ Strips all comments from the input"
 (grammar-rule syntactic-factor
   "see 4.8"
   (grammar-func
-   (grammar-and (grammar-optional (grammar-and ebnf-integer
-                                               repetition-symbol))
+   (grammar-and (grammar-optional
+                 (grammar-func (grammar-and ebnf-integer
+                                            repetition-symbol)
+                               (lambda (x) (declare (ignore x))
+                                       (read-from-string (subseq string start (1- end))))))
                 syntactic-primary)
    (lambda (x)
      (if (car x)
-         (list 'grammar-n (read-from-string (caaar x))
-               (cadr x))
+         (cons 'grammar-n x)
          (cadr x)))))
 
 (grammar-rule syntactic-exception
