@@ -42,6 +42,7 @@
 (defmacro grammar-wrap (x)
   "Wrap function or macro x as a callback"
   (cond ((null x) (error "Cannot execute nil."))
+        ((stringp x) `(grammar-wrap ,(read-from-string x)))
         ((symbolp x) (list 'quote x))
         ((listp x) `(lambda (string &key (start 0)) ,x))
         (t (error "Cannot call ~S" x))))
