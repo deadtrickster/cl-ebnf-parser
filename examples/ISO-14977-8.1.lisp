@@ -398,5 +398,24 @@ Strips all comments from the input"
         (when ec
           (syntax-abstract vc :start 0))))))
 
-;; Demos
-;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b';")
+#| Demos
+;;
+;; Parse an EBNF string
+;;
+(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b';")
+
+;;
+;; Use a macro to convert an EBNF string into Lisp functions
+;;
+(defmacro defgrammar (str)
+  (multiple-value-bind (e v) (iso14977:syntax str)
+    (declare (ignore e))
+    v))
+
+(defgrammar "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b';")
+(test "ab cg'night")
+(test "cd")
+(test "cdee")
+(test "cdeef")
+(test "cdf")
+#|
