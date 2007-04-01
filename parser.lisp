@@ -34,6 +34,7 @@
 (defmacro grammar-call (x)
   "Call function or macro x"
   (cond ((null x) (error "Cannot execute nil."))
+        ((stringp x) `(grammar-call ,(read-from-string x)))
         ((symbolp x) `(,x string :start start))
         ((listp x) x)
         (t (error "Cannot call ~S" x))))
