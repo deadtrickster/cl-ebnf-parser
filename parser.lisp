@@ -5,23 +5,23 @@
 ;; Modelled after EBNF notation
 
 (defpackage "EBNF-PARSER"
-    (:nicknames "PARSER")
-    (:use "COMMON-LISP")
-    (:export "GRAMMAR-CHAR"
-             "GRAMMAR-CHARTABLE"
-             "GRAMMAR-STRING"
-             "GRAMMAR-OPTIONAL"
-             "GRAMMAR-AND"
-             "GRAMMAR-OR"
-             "GRAMMAR-N"
-             "GRAMMAR-*"
-             "GRAMMAR-EXCEPTION"
-             "GRAMMAR-FUNC"
-             "GRAMMAR-RULE"
-             "START"
-             "END"
-             "STRING"
-             "*ENABLE-DEBUG*"))
+  (:nicknames "PARSER")
+  (:use "COMMON-LISP")
+  (:export "GRAMMAR-CHAR"
+           "GRAMMAR-CHARTABLE"
+           "GRAMMAR-STRING"
+           "GRAMMAR-OPTIONAL"
+           "GRAMMAR-AND"
+           "GRAMMAR-OR"
+           "GRAMMAR-N"
+           "GRAMMAR-*"
+           "GRAMMAR-EXCEPTION"
+           "GRAMMAR-FUNC"
+           "GRAMMAR-RULE"
+           "START"
+           "END"
+           "STRING"
+           "*ENABLE-DEBUG*"))
 
 (in-package "EBNF-PARSER")
 
