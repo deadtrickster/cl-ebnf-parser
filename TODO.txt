@@ -1,9 +1,10 @@
 Possible improvements:
 - Convert (end value) to (value end)?
   Why did I do it this way?
-  Users probably want the value more often than the end index...
+  - nil may be a valid value; but it may not be a valid index
+  - see grammar-exception (which currently doesn't exploit this order)
 
-- ASDF support
+  However, users probably want the value more often than the end index...
 
 - Loop-detection logic
   Each rule tracks its invocations.
