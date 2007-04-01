@@ -87,7 +87,7 @@
   `(multiple-value-bind (end value) (grammar-call ,x)
     (if end
         (values end value)
-        start)))
+        (values start nil))))
 
 (defmacro grammar-and (first &rest rest)
   "match = first, (grammar-and rest)"
