@@ -9,7 +9,7 @@
   :name "EBNF parser"
   :version "20070401"
   :maintainer "Daniel Herring"
-  :licence "2-clause BSD license (see COPYING.txt for details)"
+  :license "2-clause BSD license (see COPYING.txt for details)"
   :description "ISO-14977 EBNF parser"
   :components ((:file "parser")
                (:file "ISO-14977"
