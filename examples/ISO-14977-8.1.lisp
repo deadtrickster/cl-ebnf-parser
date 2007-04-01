@@ -399,4 +399,4 @@ Strips all comments from the input"
           (syntax-abstract vc :start 0))))))
 
 ;; Demos
-;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b'")
+;(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b';")
