@@ -4,9 +4,9 @@
 ;; Goal:  Provide a frontend that auto-generates the parser from raw ISO 14977 EBNF text.
 ;; e.g. "rule = (* doc *) body ;" => `(defun ,rule (...) ",doc" ,body)
 
-(defpackage "ISO-14977-8.1"
-  (:nicknames "ISO14977")
-  (:documentation "EBNF grammar, following ISO 14977 section 8.1")
+(defpackage "ISO-14977"
+  (:documentation "EBNF grammar, following ISO 14977:1996 section 8.1")
+  (:nicknames "EBNF")
   (:use "COMMON-LISP" "EBNF-PARSER")
   (:export "SYNTAX-PRINTING"
            "SYNTAX-UNCOMMENTED"
@@ -14,7 +14,7 @@
            "SYNTAX")
   )
 
-(in-package "ISO-14977-8.1")
+(in-package "ISO-14977")
 
 ;; Cheat a bit; use built-in Lisp functions for a couple rules (for efficiency)
 (grammar-rule letter
@@ -307,7 +307,7 @@ Strips all comments from the input"
 
 (grammar-rule empty-sequence
   "see 4.14"
-  (declare (ignore ebnf:string))
+  (declare (ignore string))
   (grammar-n 0 nil))
 
 (grammar-rule syntactic-primary
@@ -405,13 +405,13 @@ Strips all comments from the input"
 ;;
 ;; Parse an EBNF string
 ;;
-(iso14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b';")
+(iso-14977:syntax "(* hello *) test='ab c',\"g\'night\"(*test*) | 'c' , 'd', {'e'}, ['f'] | 3 * 'q'; test2='b';")
 
 ;;
 ;; Use a macro to convert an EBNF string into Lisp functions
 ;;
 (defmacro defgrammar (str)
-  (multiple-value-bind (e v) (iso14977:syntax str)
+  (multiple-value-bind (e v) (ebnf:syntax str)
     (declare (ignore e))
     v))
 
@@ -421,4 +421,4 @@ Strips all comments from the input"
 (test "cdee")
 (test "cdeef")
 (test "cdf")
-#|
+|#

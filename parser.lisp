@@ -5,7 +5,7 @@
 ;; Modelled after EBNF notation
 
 (defpackage "EBNF-PARSER"
-    (:nicknames "EBNF" "PARSER")
+    (:nicknames "PARSER")
     (:use "COMMON-LISP")
     (:export "GRAMMAR-CHAR"
              "GRAMMAR-CHARTABLE"
