@@ -53,3 +53,5 @@ Possible improvements:
   - XML/HTML
   - (La)TeX
   - CORBA IDL
+
+- Add an interactive (graphical?) editor/debugger
