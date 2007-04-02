@@ -31,11 +31,12 @@
  (* Process lists of expressions separated by ';'. *)
  calc={sum, ';'};
  "
-    ;; Let Lisp convert the numbers for num
-    (number (lambda (x) (declare (ignore x))
-                 (read-from-string (subseq string start end))))
 
-  ; Finish implementing the calculation...
+  ;; Let Lisp convert the numbers for num
+  (number (lambda (x) (declare (ignore x))
+                  (read-from-string (subseq string start end))))
+
+  ;; Finish implementing the calculation...
   )
 
 ;; Modify this example so that (calculator:run) processes lines as input by the user

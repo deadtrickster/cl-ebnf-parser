@@ -414,7 +414,7 @@ Strips all comments from the input"
         (when ec
           (syntax-abstract vc :start 0))))))
 
-(defmacro defgrammar (text &rest transforms)
+(defmacro defgrammar (text &body transforms)
   "Convert one or more EBNF rules into Lisp functions, optionally applying transforms to the parse tree."
   (multiple-value-bind (e v) (ebnf:syntax text)
     (declare (ignore e))
