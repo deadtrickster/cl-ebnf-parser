@@ -104,3 +104,9 @@ Rules may contain comments almost anywhere.  They are not supposed to appear in 
 (rule1 "aaaaaaaaaaa") => (10 ("a" ... "a"))
 (rule2 "a(*x*)b") => (6 "a(*x*)")
 \end{example}
+
+An \emph{exception} may be used to exclude certain matches from a rule.  In "rule=X-Y;", a match occurs when X matches but Y does not.
+\begin{example}
+(defgrammar "rule={('a'|'b'|'c')-'b'};")
+(rule "acbca") => (2 ("a" "c"))
+\end{example}

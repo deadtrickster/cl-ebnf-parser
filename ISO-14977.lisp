@@ -344,9 +344,14 @@ Strips all comments from the input"
 
 (grammar-rule syntactic-term
   "see 4.6"
-  (grammar-and syntactic-factor
-               (grammar-optional (grammar-and except-symbol
-                                              syntactic-exception))))
+  (grammar-func
+   (grammar-and syntactic-factor
+                (grammar-optional (grammar-and except-symbol
+                                               syntactic-exception)))
+   (lambda (x)
+     (if (< 1 (length x))
+         (list (list 'grammar-exception (nth 0 x) (nth 2 x)))
+         x))))
 
 (grammar-rule single-definition
   "see 4.5"
