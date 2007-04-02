@@ -11,7 +11,11 @@
   (:export "SYNTAX-PRINTING"
            "SYNTAX-UNCOMMENTED"
            "SYNTAX-ABSTRACT"
-           "SYNTAX")
+           "SYNTAX"
+           "DEFGRAMMAR"
+           "STRING"
+           "START"
+           "END")
   )
 
 (in-package "ISO-14977")
@@ -409,6 +413,22 @@ Strips all comments from the input"
       (multiple-value-bind (ec vc) (syntax-uncommented vp :start 0)
         (when ec
           (syntax-abstract vc :start 0))))))
+
+(defmacro defgrammar (text &rest transforms)
+  "Convert one or more EBNF rules into Lisp functions, optionally applying transforms to the parse tree."
+  (multiple-value-bind (e v) (ebnf:syntax text)
+    (declare (ignore e))
+    (if transforms
+        (flet ((match (rule list)
+                 (let ((f (find-if (lambda (x) (equal (car x) (second rule)))
+                                   list)))
+                   (if f
+                       (append (butlast rule)
+                               `((grammar-func ,(car (last rule)) ,(cadr f))))))))
+          (if (equal (car v) 'progn)
+              (cons 'progn (mapcar (lambda (x) (match x transforms)) (cdr v)))
+              (match v transforms)))
+        v)))
 
 #| Demos
 ;;
