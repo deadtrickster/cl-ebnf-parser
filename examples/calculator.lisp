@@ -36,7 +36,29 @@
   (number (lambda (x) (declare (ignore x))
                   (read-from-string (subseq string start end))))
 
-  ;; Finish implementing the calculation...
+  (product (lambda (list)
+             (let ((x (car list)))
+               (dolist (y (cdr list))
+                 (case (char (car y) 0)
+                   (#\* (setq x (* x (cadr y))))
+                   (#\/ (setq x (/ x (cadr y))))))
+               x)))
+             
+  (sum (lambda (list)
+         (let ((x (car list)))
+           (dolist (y (cdr list))
+             (case (char (car y) 0)
+               (#\+ (setq x (+ x (cadr y))))
+               (#\- (setq x (- x (cadr y))))))
+           x)))
+
+  (factor (lambda (x)
+            (if (listp x)
+                (cadr x)
+                x)))
+
+  (calc (lambda (list)
+          (mapcar (lambda (x) (car x)) list)))
   )
 
 ;; Modify this example so that (calculator:run) processes lines as input by the user
