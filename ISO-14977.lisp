@@ -315,7 +315,9 @@ Strips all comments from the input"
   (grammar-or optional-sequence
               repeated-sequence
               grouped-sequence
-              meta-identifier
+              (grammar-func meta-identifier
+                            (lambda (x)
+                              (list (list 'grammar-or x))))
               (grammar-func terminal-string
                             (lambda (x)
                               (list (list 'grammar-string x))))
