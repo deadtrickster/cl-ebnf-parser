@@ -133,7 +133,7 @@
     (if end
         (multiple-value-bind (e v) (kleene* f string :start end)
           (values e (cons value v)))
-        start)))
+        (values start nil))))
 
 (defmacro grammar-* (x)
   "match = {x}"
