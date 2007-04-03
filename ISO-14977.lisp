@@ -424,7 +424,8 @@ Strips all comments from the input"
                                    list)))
                    (if f
                        (append (butlast rule)
-                               `((grammar-func ,(car (last rule)) ,(cadr f))))))))
+                               `((grammar-func ,(car (last rule)) ,(cadr f))))
+                       rule))))
           (if (equal (car v) 'progn)
               (cons 'progn (mapcar (lambda (x) (match x transforms)) (cdr v)))
               (match v transforms)))

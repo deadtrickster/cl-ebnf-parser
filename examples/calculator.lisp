@@ -5,7 +5,8 @@
   (:shadow :float
            :integer
            :number)
-  (:export :calc))
+  (:export :calc
+           :run))
 
 (in-package :calculator)
 
@@ -61,4 +62,14 @@
           (mapcar (lambda (x) (car x)) list)))
   )
 
-;; Modify this example so that (calculator:run) processes lines as input by the user
+(defun run ()
+  (do ((input (read-line)
+              (read-line)))
+      ((equal input "") "Done so soon?")
+    (multiple-value-bind (e v) (sum input)
+      (if v
+          (progn
+            (format t "= ~A~%" v)
+            (when (< e (length input))
+              (format t "unmatched text: ~A~%" (subseq input e))))
+          (format t "could not process '~A'; enter a blank line to quit~%" input)))))
