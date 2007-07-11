@@ -19,6 +19,15 @@ For more information, read the ISO-14977 spec or watch how the \emph{defgrammar}
 An EBNF rule has the following specification:
 \mbox{\emph{syntax rule = meta identifier, '=', definitions list, ';'}}
 
+Each rule returns a pair of values -- its endpoint in the string, and the value of its match.  If the match fails, then the rule 
+simply returns nil.
+
+Why return (endpoint value) instead of (value endpoint)?  Since nil is never a valid endpoint, the rule can return nil on no match.
+However, nil may be a valid return value; (value endpoint) would require failed matches to return (nil nil).  (The value used by
+multiple-value-bind when a parameter is missing is implementation-specific.)
+
+One alternative is to signal a condition or trigger a throw instead of returning nil...
+
 String literals are represented by '...' or "..."; the literal is returned upon a successful match.
 \begin{example}
 (defgrammar "rule1='ab';")
