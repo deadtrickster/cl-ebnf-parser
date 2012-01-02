@@ -4,21 +4,21 @@
 ;; Goal:  Provide a frontend that auto-generates the parser from raw ISO 14977 EBNF text.
 ;; e.g. "rule = (* doc *) body ;" => `(defun ,rule (...) ",doc" ,body)
 
-(defpackage "ISO-14977"
+(defpackage #:iso-14977
   (:documentation "EBNF grammar, following ISO 14977:1996 section 8.1")
-  (:nicknames "EBNF")
-  (:use "COMMON-LISP" "EBNF-PARSER")
-  (:export "SYNTAX-PRINTING"
-           "SYNTAX-UNCOMMENTED"
-           "SYNTAX-ABSTRACT"
-           "SYNTAX"
-           "DEFGRAMMAR"
-           "STRING"
-           "START"
-           "END")
+  (:nicknames #:ebnf)
+  (:use #:common-lisp #:ebnf-parser)
+  (:export #:syntax-printing
+           #:syntax-uncommented
+           #:syntax-abstract
+           #:syntax
+           #:defgrammar
+           #:string
+           #:start
+           #:end)
   )
 
-(in-package "ISO-14977")
+(in-package #:iso-14977)
 
 ;; Cheat a bit; use built-in Lisp functions for a couple rules (for efficiency)
 (grammar-rule letter

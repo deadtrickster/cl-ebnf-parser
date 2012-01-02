@@ -4,26 +4,26 @@
 ;; A simple top-down, backtracking parser
 ;; Modelled after EBNF notation
 
-(defpackage "EBNF-PARSER"
-  (:nicknames "PARSER")
-  (:use "COMMON-LISP")
-  (:export "GRAMMAR-CHAR"
-           "GRAMMAR-CHARTABLE"
-           "GRAMMAR-STRING"
-           "GRAMMAR-OPTIONAL"
-           "GRAMMAR-AND"
-           "GRAMMAR-OR"
-           "GRAMMAR-N"
-           "GRAMMAR-*"
-           "GRAMMAR-EXCEPTION"
-           "GRAMMAR-FUNC"
-           "GRAMMAR-RULE"
-           "START"
-           "END"
-           "STRING"
-           "*ENABLE-DEBUG*"))
+(defpackage #:ebnf-parser
+  (:nicknames #:parser)
+  (:use #:common-lisp)
+  (:export #:grammar-char
+           #:grammar-chartable
+           #:grammar-string
+           #:grammar-optional
+           #:grammar-and
+           #:grammar-or
+           #:grammar-n
+           #:grammar-*
+           #:grammar-exception
+           #:grammar-func
+           #:grammar-rule
+           #:start
+           #:end
+           #:string
+           #:*enable-debug*))
 
-(in-package "EBNF-PARSER")
+(in-package #:ebnf-parser)
 
 (defparameter *enable-debug* nil "compile debug statements into grammar rules")
 
