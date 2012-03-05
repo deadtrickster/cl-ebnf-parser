@@ -33,42 +33,42 @@
 
 ;; HexDigit           = [a-fA-F0-9];
 (defrule hex-digit
-    (or
-     (ascii-range #\a #\f)
-     (ascii-range #\A #\F)
-     (ascii-range #\0 #\9)))
+  (or
+   (ascii-range #\a #\f)
+   (ascii-range #\A #\F)
+   (ascii-range #\0 #\9)))
 
 ;; Integer            = (("0" [xX] HexDigit+) | ("0" OctalDigit*) | ([1-9] Digit*));
 (defrule integer
     (or
-     (and #\0 (or #\x #\X) (range 1 * hex-digit))
-     (and #\0 (range 0 * octal-digit))
-     (and (ascii-range #\1 #\9) (range 0 * digit))))
+     (and #\0 (or #\x #\X) (repeat 1 * hex-digit))
+     (and #\0 (repeat 0 * octal-digit))
+     (and (ascii-range #\1 #\9) (repeat 0 * digit))))
 
 ;; ExponentStart      = [Ee] [+-];
 (defrule exponent-start
-    (and (or #\E #\e) (or #\+ #\-)))
+  (and (or #\E #\e) (or #\+ #\-)))
 
 ;; ExponentPart       = [Ee] [+-]? Digit+;
 (defrule exponent-part
     (and (or #\E #\e)
-         (range 0 1 (or #\+ #\-))
-         (range 1 * digit)))
+         (repeat 0 1 (or #\+ #\-))
+         (repeat 1 * digit)))
 
 ;; FractionalConstant = (Digit* "." Digit+) | (Digit+ ".");
 (defrule fractional-constant
-    (or (and (range 0 * digit) #\. (range 1 * digit))
-        (and (range 1 * digit) #\.)))
+    (or (and (repeat 0 * digit) #\. (repeat 1 * digit))
+        (and (repeat 1 * digit) #\.)))
 
 ;; FloatingSuffix     = [fF] [lL]? | [lL] [fF]?;
 (defrule floating-suffix
-    (or (and (or #\f #\F) (range 0 1 (or #\l #\L)))
-        (and (or #\l #\L) (range 0 1 (or #\f #\F)))))
+    (or (and (or #\f #\F) (repeat 0 1 (or #\l #\L)))
+        (and (or #\l #\L) (repeat 0 1 (or #\f #\F)))))
 
 ;; IntegerSuffix      = [uU] [lL]? | [lL] [uU]?;
 (defrule integer-suffix
-    (or (and (or #\u #\U) (range 0 1 (or #\l #\L)))
-        (and (or #\l #\L) (range 0 1 (or #\u #\U)))))
+    (or (and (or #\u #\U) (repeat 0 1 (or #\l #\L)))
+        (and (or #\l #\L) (repeat 0 1 (or #\u #\U)))))
 
 ;; LongIntegerSuffix  = [uU] ([lL] [lL]) | ([lL] [lL]) [uU]?;
 (defrule long-integer-suffix

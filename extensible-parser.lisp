@@ -4,6 +4,9 @@
 - allow easily embedding custom parse forms (including plain CL)
 |#
 
+;; (start end) = bounding index designators, e.g. (int int) or (int nil)
+;; except returning end==nil indicates no match; so this might not be a good convention for parameters
+
 ;; parser compiler similar to "On Lisp" section 19.5
 ;; use generic functions to register actions
 
@@ -119,6 +122,13 @@
            (values ,form (`+ ,start))))))
    t))
 
+(defmethod cpf ((form character) context)
+  (values
+   (with-slots (string start end) context
+     `(when (and (< ,start ,end) (char= ,form (char ,string ,start)))
+        (values (1+ ,start) ,form)))
+   t))
+
 #|
 (defmethod cpf ((form list) seq start end)
   (let ((car (car form)))
@@ -128,12 +138,68 @@
 (defmethod cpf ((form list) context)
   (cpf-list (car form) form context))
 
+(defmethod cpf ((form symbol) context)
+  "expand symbol macros and constants"
+  (multiple-value-bind (exp exp-p) (macroexpand form)
+    (if exp-p
+        (cpf exp context)
+        (let* ((p (constantp form))
+               (val (and p (symbol-value form))))
+          ;; don't recurse on keywords and other self-evaluating forms!
+          (if (and p (not (eql val form)))
+            (cpf (symbol-value form) context)
+            ;; what to do here should depend on the context...
+            (if (eql form t)
+                ;; special-case: t always matches without consuming input
+                (with-slots (string start end) context
+                  `(values end nil))
+                (error "do not know how to expand symbol ~A" form)))))))
+
+(defmethod cpf ((form null) context)
+  "always fail without consuming input"
+  nil)
+
+#| invocation options
+- generic functions
+(defgeneric name (context &optional args))
+(defmethod name ((context string) &optional start end))
+
+- separate package for each context
+(defun string-parser:name (string start end))
+
+- store implementations in *parse-rules* table
+(name) -> `(funcall ,(lookup-rule name) string start end)
+or to allow changes to the rule,
+(name) -> `(funcall (car ,(lookup-rule name) string start end))
+|#
 (defmacro defrule (name &body parse-form)
   (assert (= (length parse-form) 1))
   `(defun ,name (string)
      (let ((start 0)
            (end (length string)))
        ,(cpf (car parse-form) (make-instance 'string-context :string 'string :start 'start :end 'end)))))
+
+;; work on a protocol for defrule, allowing compile-time dispatch
+(defvar *parse-rules* (make-hash-table)
+  "hashtable of the rules that have been defined.  For each rule name, there is a property list recording possible expansions.  The key :source returns the original form.  Context indicators may return pre-compiled forms.")
+
+(defun get-parse-rule (key context)
+  "look up (or create) a parse rule for the given key and context"
+  (let* ((props (gethash key *parse-rules*))
+         (nonce (gensym))
+         (result (getf props context nonce)))
+    (assert props)
+    (if (eql result nonce)
+        (let ((source (getf props :source nonce)))
+          (assert (not (eql source nonce)))
+          (setf (getf props context) 
+                
+    
+  )
+;; store an alist (or plist) for each key
+;; look up the context (the :form context returns the original source)
+;; save pre-compiled forms in a cons; recompile all forms if the source changes
+;; then the call site can (funcall (car lookup) args)
 
 (defmethod cpf-list ((car (eql 'cl)) context)
   "return nil if any term failed or (values last-end (list val1 ... valn)) if all passed"
@@ -192,8 +258,51 @@
 (defrule test2
   (and (or "a" "b")
        (or "c" "d")))
-    
-    
+
+
+(defmethod cpf-list ((car (eql 'repeat)) form context)
+  "(repeat min max form) where min is 0 or more and max is an integer or nil for unlimited"
+  (with-slots (string start end) context
+    (destructuring-bind (min max body) (cdr form)
+      (let* ((c (gensym (symbol-name :count-)))
+             (e (gensym (symbol-name :end-)))
+             (le (gensym (symbol-name :last-end-)))
+             (tmp (gensym (symbol-name :temp-)))
+             (v (gensym (symbol-name :val-)))
+             (new-context
+              (make-instance 'string-context
+                             :string string
+                             :start e
+                             :end end)))
+        (values
+         `(do ((,c 0)
+               (,e ,start)
+               (,le ,(if (= 0 min)
+                         start
+                         nil))
+               (,tmp nil)
+               (,v nil))
+              (,(if max
+                    `(or (not ,e)
+                         (>= ,c ,max))
+                    `(not ,e))
+               (when (>= ,c ,min)
+                 (values ,le (reverse ,v))))
+            (setf (values ,e ,tmp) ,(cpf body new-context))
+            (when ,e
+              (incf ,c)
+              (setf ,le ,e)
+              (push ,tmp ,v)))
+         t)))))
+
+(defrule test-repeat
+  (repeat 1 nil #\a))
+
+(defrule test-repeat
+  (and (repeat 0 1 #\a)
+       (repeat 1 nil #\b)))    
+
+
 #|
 (defmacro defrule (name &body body)
   `(progn
