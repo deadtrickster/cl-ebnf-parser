@@ -102,8 +102,9 @@ NonDigit           = [a-zA-Z_$] | UniversalChar;
 
 ;; 2.8
 (defrule c++-comment
-    (cl:and *c++-mode*
-            (and "//"
-                 (repeat 0 * (exception any (or slash-v slash-f slash-n)))
-                 (repeat 0 * (or slash-v slash-f (exception whitespace slash-n)))
-                 slash-n)))
+  (:cl (when *c++-mode*
+         (:parse
+          (and "//"
+               (repeat 0 * (exception any (or slash-v slash-f slash-n)))
+               (repeat 0 * (or slash-v slash-f (exception whitespace slash-n)))
+               slash-n)))))

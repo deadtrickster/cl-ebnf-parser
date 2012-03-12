@@ -2,6 +2,8 @@
 - allow matching in strings, lists, and other source types (extensible)
 - allow writing expressions using normal CL grammar but evaluating in a parse-specific way
 - allow easily embedding custom parse forms (including plain CL)
+- quote/quasiquote-style mechanism for nesting plain lisp functions
+  (:cl (f (:parse rule)))
 |#
 
 ;; (start end) = bounding index designators, e.g. (int int) or (int nil)
@@ -10,16 +12,37 @@
 ;; parser compiler similar to "On Lisp" section 19.5
 ;; use generic functions to register actions
 
+#| Parser calling convention
+
+Given a form,
+
+if an atom,
+- try to expand symbol macros, take the values of constants, and re-dispatch
+- if T, return match without advancing
+- if NIL, return fail without advancing
+- else try to match the literal (using (format nil "~S" f) if needed)
+
+if a list,
+- try dispatching to cpf-list
+- if (car list) is :cl, then (:cl x) -> x
+  and recursively change (:parse x) to (setf context (cpf x context))
+  (
+|#
+
 ;;;; PROTOCOL
 
-(defgeneric cpf (form context)
+(defgeneric cpf (form context env)
   (:documentation "Main entry point for expanding parse forms.
  CPF = compile parse form.
  Given a parse expression and a parsing context, return (values expansion expanded-p)."))
 
-(defgeneric cpf-list (car form context)
+(defgeneric cpf-list (car form context env)
   (:documentation "CPF dispatches list forms to this function.
  The user should register new parse forms by creating the proper method specializations."))
+
+(defmacro cpf-macro (form context &environment env)
+  "delay macroexpansion"
+  (cpf form context env))
 
 (defclass context nil nil
   (:documentation "specialize this class for different types of input"))
@@ -31,6 +54,13 @@
   (:documentation "specialization for parsing a string of text
  While END will often be (length string), making it an explicit parameter should help when the message is known to be shorter.
  For example, many formats encode the message size in a header field."))
+#|
+possible extensions/optimiztions
+- check the length for several rules at once; don't need to check inside
+- merge rules into a character-table lookup
+- don't generate the value list when it will be discarded (e.g. in token strings)
+- flag when start/values can be modified directly
+|#
 
 (defclass list-context (context)
   (top here end)
@@ -53,7 +83,9 @@
 
 ;;;; STRING IMPLEMENTATION
 
-(defun cpf-cl-all (form context)
+;; rather than guessing, use an explicit quasi-quote-style mechanism
+#|
+ (defun cpf-cl-all (form context)
   "recurse through a normal CL source form, processing sublists as possible parse forms"
   (if (listp form)
     (let ((modified nil))
@@ -69,8 +101,8 @@
        modified))
     form))
 
-;; needs a way to control context chaining when recursing through normal expressions
-(defun cfp-cl-key (form context &optional (key 'parse))
+ ;; needs a way to control context chaining when recursing through normal expressions
+ (defun cpf-cl-key (form context &optional (key 'parse))
   "recurse through a normal CL form, processing sublists that begin with KEY as parse forms"
   (if (listp form)
       (let ((modified nil))
@@ -86,19 +118,21 @@
                   x))
          modified))
       form))
-                        
+|#
 
-(defun match-atom (seq start end atom)
+#|
+ (defun match-atom (seq start end atom)
   (declare (ignore end))
   (when (equal (elt seq start) atom)
     (values (1+ start) atom)))
 
-(defmethod cpf (form seq start end)
+ (defmethod cpf (form seq start end)
   "try to match the atom form in the seq"
   `(match-atom ,seq ,start ,end ,form))
+|#
 
 #|
-(defmethod cpf-list (car form seq start end)
+ (defmethod cpf-list (car form seq start end)
   ;; default method: don't modify the form...
   form)
 |#
@@ -110,7 +144,7 @@
                (string= prefix string :start2 start :end2 stop))
       (values stop prefix))))
 
-(defmethod cpf ((form string) context)
+(defmethod cpf ((form string) context env)
   (values
    (typecase context
      (string-context
@@ -122,7 +156,7 @@
            (values ,form (`+ ,start))))))
    t))
 
-(defmethod cpf ((form character) context)
+(defmethod cpf ((form character) context env)
   (values
    (with-slots (string start end) context
      `(when (and (< ,start ,end) (char= ,form (char ,string ,start)))
@@ -130,24 +164,26 @@
    t))
 
 #|
-(defmethod cpf ((form list) seq start end)
+ (defmethod cpf ((form list) seq start end)
   (let ((car (car form)))
     (if (eql car 'cl)
         (cpf-list (car form) form seq start end))))
 |#
-(defmethod cpf ((form list) context)
-  (cpf-list (car form) form context))
+(defmethod cpf ((form list) context env)
+  (cpf-list (car form) form context env))
 
-(defmethod cpf ((form symbol) context)
+(defmethod cpf ((form symbol) context env)
   "expand symbol macros and constants"
-  (multiple-value-bind (exp exp-p) (macroexpand form)
+  ;; try to expand a symbol-macro
+  (multiple-value-bind (exp exp-p) (macroexpand form env)
     (if exp-p
-        (cpf exp context)
+        (cpf exp context env)
+        ;; not a symbol-macro, try to expand a constant
         (let* ((p (constantp form))
                (val (and p (symbol-value form))))
           ;; don't recurse on keywords and other self-evaluating forms!
           (if (and p (not (eql val form)))
-            (cpf (symbol-value form) context)
+            (cpf (symbol-value form) context env)
             ;; what to do here should depend on the context...
             (if (eql form t)
                 ;; special-case: t always matches without consuming input
@@ -155,29 +191,30 @@
                   `(values end nil))
                 (error "do not know how to expand symbol ~A" form)))))))
 
-(defmethod cpf ((form null) context)
+(defmethod cpf ((form null) context env)
   "always fail without consuming input"
   nil)
 
 #| invocation options
 - generic functions
-(defgeneric name (context &optional args))
-(defmethod name ((context string) &optional start end))
+ (defgeneric name (context &optional args))
+ (defmethod name ((context string) &optional start end))
 
 - separate package for each context
-(defun string-parser:name (string start end))
+ (defun string-parser:name (string start end))
 
 - store implementations in *parse-rules* table
-(name) -> `(funcall ,(lookup-rule name) string start end)
+ (name) -> `(funcall ,(lookup-rule name) string start end)
 or to allow changes to the rule,
-(name) -> `(funcall (car ,(lookup-rule name) string start end))
+ (name) -> `(funcall (car ,(lookup-rule name) string start end))
 |#
-(defmacro defrule (name &body parse-form)
+
+(defmacro defrule (name &body parse-form &environment env)
   (assert (= (length parse-form) 1))
   `(defun ,name (string)
      (let ((start 0)
            (end (length string)))
-       ,(cpf (car parse-form) (make-instance 'string-context :string 'string :start 'start :end 'end)))))
+       ,(cpf (car parse-form) (make-instance 'string-context :string 'string :start 'start :end 'end) env))))
 
 ;; work on a protocol for defrule, allowing compile-time dispatch
 (defvar *parse-rules* (make-hash-table)
@@ -195,18 +232,62 @@ or to allow changes to the rule,
           (setf (getf props context) 
                 
     
-  )
+  )))))
+
 ;; store an alist (or plist) for each key
 ;; look up the context (the :form context returns the original source)
 ;; save pre-compiled forms in a cons; recompile all forms if the source changes
 ;; then the call site can (funcall (car lookup) args)
 
-(defmethod cpf-list ((car (eql 'cl)) context)
-  "return nil if any term failed or (values last-end (list val1 ... valn)) if all passed"
+
+#|
+ (defun cpf-cl-key (form context &optional (key 'parse))
+  "recurse through a normal CL form, processing sublists that begin with KEY as parse forms"
+  (if (listp form)
+      (let ((modified nil))
+        (values
+         (loop for x in form
+            collecting
+              (if (and (listp x) (eql (car x) key))
+                  (multiple-value-bind (exp exp-p) (cpf (cdr x) context)
+                    (if exp-p
+                        (setf modified t)
+                        (warn 'warn-pfnr-form :form exp))
+                    exp)
+                  x))
+         modified))
+      form))
+|#
+
+(defmethod cpf-list ((car (eql :parse)) form context env)
+  (error ":parse not in :cl - ~S" form))
+          
+
+(defun expand-nested-parse (form context &optional (key :parse))
+  ;; don't pass env; it will be picked up by the call site...
+  "destructively recurse through the form, expanding (:parse x) into a (cpf x) call site"
+  (when (listp form)
+    ;; in (x1 x2 x3), replace xi if it matches (key y)
+    (mapl (lambda (x)
+            (let ((c (car x)))
+              (when (listp c)
+                (if (eql (car c) key)
+                    (progn
+                      (unless (= (length c) 2)
+                        (error "expected (:parse x), got ~S" c))
+                      (setf (car x) `(cpf-macro ,(cadr c) ,context)))
+                    (expand-nested-parse c context key)))))
+          form))
+  form)
+
+(defmethod cpf-list ((car (eql :cl)) form context env)
+  "bind a cpf context and invoke any nested call sites"
   )
 
-(defmethod cpf-list ((car (eql 'and)) form context)
+#| original nested method
+ (defmethod cpf-list ((car (eql and)) form context)
   "Apply the parse forms in order, returning a list of their results or nil if any do not match."
+  ;;"return nil if any term failed or (values last-end (list val1 ... valn)) if all passed"
   (let ((term (cadr form))
         (rest (cddr form)))
     (with-slots (string start end) context
@@ -223,12 +304,58 @@ or to allow changes to the rule,
                    (vrest (gensym (symbol-name :vrest-))))
                `(multiple-value-bind (,e1 ,v1) ,(cpf term context)
                   (when ,e1
-                    (multiple-value-bind (,erest ,vrest) ,(cpf (cons 'and rest) new-context)
+                    (multiple-value-bind (,erest ,vrest) ,(cpf (cons and rest) new-context)
                       (when ,erest (values ,erest (cons ,v1 ,vrest)))))))
              `(multiple-value-bind (,e1 ,v1) ,(cpf term context)
                 (when ,e1
                   (values ,e1 (cons ,v1 nil))))))
        t))))
+|#
+
+(defmacro pushback (obj tail)
+  "push obj to the tail of the list, and update the tail"
+  `(setf (cdr ,tail) (cons ,obj nil)
+         ,tail (cdr ,tail)))
+
+;; new flat method (less nesting is easier to read?)
+(defmethod cpf-list ((car (eql 'and)) form context env)
+  (with-slots (string start end) context
+    (let* ((args (cdr form))
+           (blocksym (gensym (symbol-name :and-)))
+           (endsym (gensym (symbol-name :end-)))
+           (valsym (gensym (symbol-name :val-)))
+           (listsym (gensym (symbol-name :list-)))
+           (tailsym (gensym (symbol-name :tail-)))
+           (new-context
+            (make-instance 'string-context
+                           :string string
+                           :start endsym
+                           :end end))
+           (inner
+            `(let* ((,endsym ,start)
+                    ,valsym
+                    (,listsym (cons nil nil))
+                    (,tailsym ,listsym))))
+           (last (last inner 1)))
+      (unless args
+        (return-from cpf-list (values `(values) t)))
+      (dolist (f args)
+        (pushback
+         `(setf (values ,endsym ,valsym) ,(cpf f new-context env))
+         last)
+        (pushback
+         `(unless ,endsym
+            (return-from ,blocksym))
+         last)
+        (pushback
+         `(pushback ,valsym ,tailsym)
+         last))
+      (pushback `(values ,endsym (cdr ,listsym))
+                last)
+      `(block ,blocksym ,inner))))
+      
+
+(defrule test-and0 (and))
 
 (defrule test-and (and "hello" " " "world"))
 ;;(test-and "hello world")
