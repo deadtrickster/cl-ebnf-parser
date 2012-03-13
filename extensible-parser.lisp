@@ -211,10 +211,8 @@ or to allow changes to the rule,
 
 (defmacro defrule (name &body parse-form &environment env)
   (assert (= (length parse-form) 1))
-  `(defun ,name (string)
-     (let ((start 0)
-           (end (length string)))
-       ,(cpf (car parse-form) (make-instance 'string-context :string 'string :start 'start :end 'end) env))))
+  `(defun ,name (string &optional (start 0) (end (length string)))
+       ,(cpf (car parse-form) (make-instance 'string-context :string 'string :start 'start :end 'end) env)))
 
 ;; work on a protocol for defrule, allowing compile-time dispatch
 (defvar *parse-rules* (make-hash-table)
@@ -259,6 +257,14 @@ or to allow changes to the rule,
       form))
 |#
 
+(defmethod cpf-list (car form context env)
+  "expand unknown forms as parse calls"
+  ;; issue a warning for some forms?
+  ;; e.g. (:keyword ...)
+  (with-slots (string start end) context
+    (destructuring-bind (head &rest rest) form
+      `(,head ,string ,start ,end ,@rest))))
+
 (defmethod cpf-list ((car (eql :parse)) form context env)
   (error ":parse not in :cl - ~S" form))
           
@@ -282,7 +288,8 @@ or to allow changes to the rule,
 
 (defmethod cpf-list ((car (eql :cl)) form context env)
   "bind a cpf context and invoke any nested call sites"
-  )
+  ;; should this bind a new context?  skip for now...
+  (expand-nested-parse (cdr form) context))
 
 #| original nested method
  (defmethod cpf-list ((car (eql and)) form context)
@@ -319,6 +326,8 @@ or to allow changes to the rule,
 
 ;; new flat method (less nesting is easier to read?)
 (defmethod cpf-list ((car (eql 'and)) form context env)
+  (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:and)
+    (return-from cpf-list (slot-value context 'start)))
   (with-slots (string start end) context
     (let* ((args (cdr form))
            (blocksym (gensym (symbol-name :and-)))
@@ -337,8 +346,6 @@ or to allow changes to the rule,
                     (,listsym (cons nil nil))
                     (,tailsym ,listsym))))
            (last (last inner 1)))
-      (unless args
-        (return-from cpf-list (values `(values) t)))
       (dolist (f args)
         (pushback
          `(setf (values ,endsym ,valsym) ,(cpf f new-context env))
@@ -355,13 +362,15 @@ or to allow changes to the rule,
       `(block ,blocksym ,inner))))
       
 
-(defrule test-and0 (and))
+(defrule test-and0 (and "hi" (and)))
 
 (defrule test-and (and "hello" " " "world"))
 ;;(test-and "hello world")
 
+(defrule test-composition (or (test-and) "no"))
 
-(defmethod cpf-list ((car (eql 'or)) form context)
+#| original recursive implementation
+ (defmethod cpf-list ((car (eql 'or)) form context env)
   "Apply the parse forms in order, returning the value of the first that matches or nil in none match."
   (with-slots (string start end) context
     (let ((term (cadr form))
@@ -370,12 +379,37 @@ or to allow changes to the rule,
           (v1 (gensym (symbol-name :v1-))))
       (values
        (if rest
-           `(multiple-value-bind (,e1 ,v1) ,(cpf term context)
+           `(multiple-value-bind (,e1 ,v1) ,(cpf term context env)
               (if ,e1
                   (values ,e1 ,v1)
-                  ,(cpf (cons 'or rest) context)))
-          (cpf term context))
+                  ,(cpf (cons 'or rest) context env)))
+          (cpf term context env))
        t))))
+|#
+
+;; new flat implementation
+(defmethod cpf-list ((car (eql 'or)) form context env)
+  (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:or)
+    (return-from cpf-list nil))
+  (with-slots (string start end) context
+    (let* ((args (cdr form))
+           (blocksym (gensym (symbol-name :or-)))
+           (endsym (gensym (symbol-name :end-)))
+           (valsym (gensym (symbol-name :val-)))
+           (inner
+            `(let* (,endsym ,valsym)))
+           (last (last inner 1)))
+      (dolist (f args)
+        (pushback
+         `(setf (values ,endsym ,valsym) ,(cpf f context env))
+         last)
+        (pushback
+         `(when ,endsym
+            (return-from ,blocksym (values ,endsym ,valsym)))
+         last))
+      `(block ,blocksym ,inner))))
+
+(defrule test-or0 (or (or) "hi"))
 
 (defrule test-or
   (or "hello" "world"))
@@ -387,7 +421,7 @@ or to allow changes to the rule,
        (or "c" "d")))
 
 
-(defmethod cpf-list ((car (eql 'repeat)) form context)
+(defmethod cpf-list ((car (eql 'repeat)) form context env)
   "(repeat min max form) where min is 0 or more and max is an integer or nil for unlimited"
   (with-slots (string start end) context
     (destructuring-bind (min max body) (cdr form)
@@ -415,7 +449,7 @@ or to allow changes to the rule,
                     `(not ,e))
                (when (>= ,c ,min)
                  (values ,le (reverse ,v))))
-            (setf (values ,e ,tmp) ,(cpf body new-context))
+            (setf (values ,e ,tmp) ,(cpf body new-context env))
             (when ,e
               (incf ,c)
               (setf ,le ,e)
