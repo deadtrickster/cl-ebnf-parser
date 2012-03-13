@@ -280,7 +280,7 @@ or to allow changes to the rule,
                 (if (eql (car c) key)
                     (progn
                       (unless (= (length c) 2)
-                        (error "expected (:parse x), got ~S" c))
+                        (error "expected (:parse rule), got ~S" c))
                       (setf (car x) `(cpf-macro ,(cadr c) ,context)))
                     (expand-nested-parse c context key)))))
           form))
@@ -289,7 +289,12 @@ or to allow changes to the rule,
 (defmethod cpf-list ((car (eql :cl)) form context env)
   "bind a cpf context and invoke any nested call sites"
   ;; should this bind a new context?  skip for now...
-  (expand-nested-parse (cdr form) context))
+  (unless (= (length form) 2)
+    (error "expected (:cl form), got ~S" form))
+  (expand-nested-parse (cadr form) context))
+
+(defrule test-cl
+  (:cl (and (:parse "hi"))))
 
 #| original nested method
  (defmethod cpf-list ((car (eql and)) form context)

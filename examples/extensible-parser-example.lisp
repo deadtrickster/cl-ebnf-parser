@@ -8,6 +8,11 @@
 
 (defparameter *c++-mode* nil "indicate that we are parsing C++ code")
 
+(defun ascii-range (string start end char0 char1)
+  (when (< start end)
+    (let ((c (char string start)))
+      (when (<= (char-code char0) (char-code c) (char-code char1))
+        (values (1+ start) c)))))
 
 ;; any                = [\t\v\f\r\n\040-\377];
 (defrule any
@@ -21,15 +26,15 @@
 
 ;; anyctrl            = [\001-\037];
 (defrule anyctrl
-    (ascii-range 1 31))
+  (ascii-range 1 31))
 
 ;; OctalDigit         = [0-7];
 (defrule octal-digit
-    (ascii-range #\0 #\7))
+  (ascii-range #\0 #\7))
 
 ;; Digit              = [0-9];
 (defrule digit
-    (ascii-range #\0 #\9))
+  (ascii-range #\0 #\9))
 
 ;; HexDigit           = [a-fA-F0-9];
 (defrule hex-digit
@@ -39,11 +44,23 @@
    (ascii-range #\0 #\9)))
 
 ;; Integer            = (("0" [xX] HexDigit+) | ("0" OctalDigit*) | ([1-9] Digit*));
-(defrule integer
-    (or
-     (and #\0 (or #\x #\X) (repeat 1 * hex-digit))
-     (and #\0 (repeat 0 * octal-digit))
-     (and (ascii-range #\1 #\9) (repeat 0 * digit))))
+(defrule r-integer
+  (or
+   (:cl
+    (let ((match (:parse (and #\0 (or #\x #\X) (repeat 1 nil (hex-digit))))))
+      (when match
+        (values match
+                (parse-integer (subseq string (+ start 2) match) :radix 16)))))
+   (:cl
+    (let ((match (:parse (and #\0 (repeat 0 nil (octal-digit))))))
+      (when match
+        (values match
+                (parse-integer (subseq string (+ start 1) match) :radix 8)))))
+   (:cl
+    (let ((match (:parse (and (ascii-range #\1 #\9) (repeat 0 nil (digit))))))
+      (when match
+        (values match
+                (parse-integer (subseq string start match) :radix 10)))))))
 
 ;; ExponentStart      = [Ee] [+-];
 (defrule exponent-start
