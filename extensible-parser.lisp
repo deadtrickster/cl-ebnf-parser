@@ -510,6 +510,18 @@ or to allow changes to the rule,
        (repeat 1 nil #\b)))    
 
 
+(defmethod cpf-list ((car (eql 'exception)) form context env)
+  (assert (= (length form) 3))
+  (with-slots (string start end) context
+    (destructuring-bind (pass fail) (cdr form)
+      (let* ((e (gensym (symbol-name :end-)))
+             (v (gensym (symbol-name :val-))))
+        `(multiple-value-bind (,e ,v) ,(cpf pass context env)
+           (when ,e
+             (unless ,(cpf fail context env)
+               (values ,e ,v))))))))
+
+
 #|
 (defmacro defrule (name &body body)
   `(progn

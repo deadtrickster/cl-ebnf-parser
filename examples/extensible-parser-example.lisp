@@ -81,16 +81,30 @@
       (and "\U" (hex-quad) (hex-quad))))
 
 
-;; 2.10
+;; 2.10, lex.ppnumber
+
 ;; left recursion...
 (defrule pp-number
+  ;; original, left recursion
+  #|
   (or> (digit)
        (and #\. (digit))
        (and (pp-number) (digit))
        (and (pp-number) (identifier-nondigit))
        (and (pp-number) #\e (sign))
        (and (pp-number) #\E (sign))
-       (and (pp-number) #\.)))
+       (and (pp-number) #\.))
+  |#
+  ;; equivalent
+  (and
+   (or (and (repeat 0 nil (digit)) #\. (repeat 1 nil (digit)))
+       (and (repeat 1 nil (digit)) #\. (repeat 0 nil (digit)))
+       (repeat 1 nil (digit)))
+   (optional
+    (and (or #\e #\E)
+         (sign)
+         (repeat 0 nil (digit))))))
+
 
 ;; explore solution to left recursion
 ;; simulate (or (and (pp-number) (digit)) (digit))
@@ -238,6 +252,65 @@
   (or (and (decimal-literal) (optional (integer-suffix)))
       (and (octal-literal) (optional (integer-suffix)))
       (and (hexadecimal-literal) (optional (integer-suffix)))))
+
+;; 2.14.3, lex.ccon
+
+(defrule simple-escape-sequence
+  (and #\\ (or #\' #\" #\? #\\
+               #\a #\b #\f #\n #\r #\t #\v)))
+
+(defrule octal-escape-sequence
+  (and #\\ (repeat 1 3 (octal-digit))))
+
+(defrule hexadecimal-escape-sequence
+  (and #\\ #\x (repeat 1 nil (hexadecimal-digit))))
+
+(defrule escape-sequence
+  (or (simple-escape-sequence)
+      (octal-escape-sequence)
+      (hexadecimal-escape-sequence)))
+
+(defun any-char (string start end)
+  (when (< start end)
+    (values (1+ start) (char string start))))
+
+(defrule c-char
+  (or (exception (any-char) (or #\' #\\ slash-n))
+      (escape-sequence)
+      (universal-character-name)))
+
+(defrule c-char-sequence
+  (repeat 1 nil (c-char)))
+
+(defrule character-literal
+  (or (and #\' (c-char-sequence) #\')
+      (and "u'" (c-char-sequence) #\')
+      (and "U'" (c-char-sequence) #\')
+      (and "L'" (c-char-sequence) #\')))
+
+;; 2.14.4, lex.fcon
+(defrule sign
+  (or #\+ #\-))
+
+(defrule digit-sequence
+  (repeat 1 nil (digit)))
+
+(defrule floating-suffix
+  (or #\f #\l #\F #\L))
+
+(defrule exponent-part
+  (and (or #\e #\E) (optional (sign)) (digit-sequence)))
+
+(defrule fractional-constant
+  (or (and (optional (digit-sequence)) #\. (digit-sequence))
+      (and (digit-sequence) #\.)))
+
+(defrule floating-literal
+  (or (and (fractional-constant) (optional (exponent-part)) (optional (floating-suffix)))
+      (and (digit-sequence) (exponent-part) (optional (floating-suffix)))))
+
+
+;; --------
 
 ;; Integer            = (("0" [xX] HexDigit+) | ("0" OctalDigit*) | ([1-9] Digit*));
 (defrule r-integer
