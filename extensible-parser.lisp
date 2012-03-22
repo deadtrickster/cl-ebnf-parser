@@ -218,7 +218,8 @@ or to allow changes to the rule,
 (defvar *parse-rules* (make-hash-table)
   "hashtable of the rules that have been defined.  For each rule name, there is a property list recording possible expansions.  The key :source returns the original form.  Context indicators may return pre-compiled forms.")
 
-(defun get-parse-rule (key context)
+#| work-in-progress
+ (defun get-parse-rule (key context)
   "look up (or create) a parse rule for the given key and context"
   (let* ((props (gethash key *parse-rules*))
          (nonce (gensym))
@@ -231,6 +232,7 @@ or to allow changes to the rule,
                 
     
   )))))
+|#
 
 ;; store an alist (or plist) for each key
 ;; look up the context (the :form context returns the original source)
@@ -267,22 +269,28 @@ or to allow changes to the rule,
 
 (defmethod cpf-list ((car (eql :parse)) form context env)
   (error ":parse not in :cl - ~S" form))
-          
+
+(defmethod cpf-list ((car (eql :context)) form context env)
+  (error ":context not in :cl - ~S" form))
+
 
 (defun expand-nested-parse (form context &optional (key :parse))
   ;; don't pass env; it will be picked up by the call site...
-  "destructively recurse through the form, expanding (:parse x) into a (cpf x) call site"
+  "Destructively recurse through the form, expanding (:parse x) into a (cpf x) call site.  Also expands (:context) to the parse context object (e.g. for macros)."
   (when (listp form)
     ;; in (x1 x2 x3), replace xi if it matches (key y)
     (mapl (lambda (x)
             (let ((c (car x)))
               (when (listp c)
-                (if (eql (car c) key)
-                    (progn
-                      (unless (= (length c) 2)
-                        (error "expected (:parse rule), got ~S" c))
-                      (setf (car x) `(cpf-macro ,(cadr c) ,context)))
-                    (expand-nested-parse c context key)))))
+                (cond
+                  ((eql (car c) key)
+                   (unless (= (length c) 2)
+                     (error "expected (:parse rule), got ~S" c))
+                   (setf (car x) `(cpf-macro ,(cadr c) ,context)))
+                  ((equal c (list :context))
+                   (setf (car x) context))
+                  (t
+                   (expand-nested-parse c context key))))))
           form))
   form)
 
@@ -291,7 +299,8 @@ or to allow changes to the rule,
   ;; should this bind a new context?  skip for now...
   (unless (= (length form) 2)
     (error "expected (:cl form), got ~S" form))
-  (expand-nested-parse (cadr form) context))
+  ;; need to wrap and unwrap the argument so (:cl (:parse ...)) works
+  (car (expand-nested-parse (cdr form) context)))
 
 (defrule test-cl
   (:cl (and (:parse "hi"))))
@@ -414,6 +423,36 @@ or to allow changes to the rule,
          last))
       `(block ,blocksym ,inner))))
 
+(defmethod cpf-list ((car (eql 'or>)) form context env)
+  "return the rule that has the longest match"
+  (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:or)
+    (return-from cpf-list nil))
+  (with-slots (string start end) context
+    (let* ((args (cdr form))
+           (blocksym (gensym (symbol-name :or-)))
+           (endsym (gensym (symbol-name :end-)))
+           (valsym (gensym (symbol-name :val-)))
+           (bestendsym (gensym (symbol-name :bestend-)))
+           (bestvalsym (gensym (symbol-name :bestval-)))
+           (inner
+            `(let* (,endsym ,valsym (,bestendsym ,start) ,bestvalsym)))
+           (last (last inner 1)))
+      (dolist (f args)
+        (pushback
+         `(setf (values ,endsym ,valsym) ,(cpf f context env))
+         last)
+        (pushback
+         `(when (and ,endsym (> ,endsym ,bestendsym))
+            (setf ,bestendsym ,endsym
+                  ,bestvalsym ,valsym))
+         last))
+      (pushback
+       `(when ,bestendsym
+          (values ,bestendsym ,bestvalsym))
+       last)
+      `(block ,blocksym ,inner))))
+
+
 (defrule test-or0 (or (or) "hi"))
 
 (defrule test-or
@@ -425,6 +464,8 @@ or to allow changes to the rule,
   (and (or "a" "b")
        (or "c" "d")))
 
+(defmethod cpf-list ((car (eql 'optional)) form context env)
+  (cpf (cons 'repeat (cons 0 (cons 1 (cdr form)))) context env))
 
 (defmethod cpf-list ((car (eql 'repeat)) form context env)
   "(repeat min max form) where min is 0 or more and max is an integer or nil for unlimited"
@@ -480,10 +521,12 @@ or to allow changes to the rule,
 
 ;;;; ARRAY IMPLEMENTATION
 
-(defmethod cfp ((form string) (context array-context))
+#| stale
+ (defmethod cfp ((form string) (context array-context))
   "match a string in the array"
   (with-slots (array start) context
     (values
      `(when (string= ,form (aref ,array ,start))
         (values ,form (1+ ,start)))
      t)))
+|#
