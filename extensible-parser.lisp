@@ -62,6 +62,12 @@ possible extensions/optimiztions
 - flag when start/values can be modified directly
 |#
 
+(defmethod print-object ((obj string-context) stream)
+  (with-slots (string start end) obj
+    (format stream "#.(make-instance 'string-context :string '~A :start '~A :end '~A)~%"
+            string start end)))
+
+
 (defclass list-context (context)
   (top here end)
   (:documentation "specialization for parsing a list of tokens"))
@@ -511,6 +517,7 @@ or to allow changes to the rule,
 
 
 (defmethod cpf-list ((car (eql 'exception)) form context env)
+  "(exception A B) -> match if A matches but B does not"
   (assert (= (length form) 3))
   (with-slots (string start end) context
     (destructuring-bind (pass fail) (cdr form)
@@ -520,6 +527,18 @@ or to allow changes to the rule,
            (when ,e
              (unless ,(cpf fail context env)
                (values ,e ,v))))))))
+
+(defmethod cpf-list ((car (eql 'assert)) form context env)
+  "(assert A) -> A or an exception if no match"
+  (unless (= (length form) 2)
+    (error "expected (assert X), got ~A" form))
+  (with-slots (string start end) context
+    (let* ((e (gensym (symbol-name :end-)))
+           (v (gensym (symbol-name :val-))))
+      `(multiple-value-bind (,e ,v) ,(cpf (cadr form) context env)
+         (unless ,e
+           (error ,(format nil "rule did not match: ~A~%at index ~~A" form) ,start))
+         (values ,e ,v)))))
 
 
 #|

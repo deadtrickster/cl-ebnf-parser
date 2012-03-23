@@ -6,7 +6,7 @@
 (defconstant slash-f #\Page "C escape: \f; (code-char 12)")
 (defconstant slash-r #\Return "C escape: \r; (code-char 13)")
 
-(defparameter *c++-mode* nil "indicate that we are parsing C++ code")
+(defparameter *c++-mode* t "indicate that we are parsing C++ code")
 
 (defun ascii-range (string start end char0 char1)
   (when (< start end)
@@ -79,6 +79,44 @@
 (defrule universal-character-name
   (or (and "\u" (hex-quad))
       (and "\U" (hex-quad) (hex-quad))))
+
+
+;; 2.8, lex.comment
+(defun c-comment (string &optional (start 0) (end (length string)))
+  (when (starts-with string start end "/*")
+    (let ((close (search "*/" string :start2 (+ start 2))))
+      (unless close
+        (error "unterminated C comment, start: ~A" start))
+      (values (+ close 2) (list :comment (subseq string (+ start 2) close))))))
+
+(defrule c++-comment
+  (:cl (when *c++-mode*
+         (:parse
+          (and "//"
+               ;; the standard mentions slash-v and slash-f
+               ;; ignore for now since hard to encode
+               ;;(repeat 0 nil (exception (any) (or slash-v slash-f slash-n)))
+               ;;(repeat 0 nil (or slash-v slash-f (exception whitespace slash-n)))
+               (repeat 0 nil (exception (any-char) slash-n))
+               (assert slash-n))))))
+
+
+;; 2.9, lex.header
+(defrule h-char
+  (exception (any-char) (or slash-n #\>)))
+
+(defrule h-char-sequence
+  (repeat 1 nil (h-char)))
+
+(defrule q-char
+  (exception (any-char) (or slash-n #\")))
+
+(defrule q-char-sequence
+  (repeat 1 nil (q-char)))
+
+(defrule header-name
+  (or (and #\< (h-char-sequence) #\>)
+      (and #\" (q-char-sequence) #\")))
 
 
 ;; 2.10, lex.ppnumber
@@ -384,21 +422,6 @@ NonDigit           = [a-zA-Z_$] | UniversalChar;
         literal
         operator
         punctuator))
-
-;; 2.8
-(defrule c-comment
-    (and "/*" (match-until "*/")))
-
-;; 2.8
-(defrule c++-comment
-  (:cl (when *c++-mode*
-         (:parse
-          (and "//"
-               (repeat 0 * (exception any (or slash-v slash-f slash-n)))
-               (repeat 0 * (or slash-v slash-f (exception whitespace slash-n)))
-               slash-n)))))
-
-
 
 ;; 2.12
 ;; these apply to full tokens...
