@@ -1,4 +1,9 @@
-;; translation of Boost's cpp.re
+;; near direct implementation of the ISO C++ standard
+;; the code is arranged to reflect the "Lexical conventions" chapter
+;; developed with n3290.pdf
+;; a `grep '2\.' $file` should show the overall structure and state of implementation
+
+#|;; translation of Boost's cpp.re|#
 
 (defconstant slash-t #\Tab "C escape: \t; (code-char 9)")
 (defconstant slash-n #\Linefeed "C escape: \n; (code-char 10)")
@@ -58,6 +63,7 @@
            (let ((,stringsym ,string)
                  (,startsym ,start)
                  (,endsym ,end))
+             (declare (ignorable ,stringsym ,startsym ,endsym))
              ,@body))))))
 
 ;; match-filter isn't very useful as it stands
@@ -69,7 +75,13 @@
        (values ,aftersym ,@body))))
 
 
-;; 2.3
+;; 2.2, lex.phases
+;; skip phases 1 and 2; they are seldom encountered
+;; phase 2: warn if the input does not end in a newline
+;; this file does phase 3
+;; other source files should handle the other phases
+
+;; 2.3, lex.charset
 (defrule hex-quad
   (and (hexadecimal-digit)
        (hexadecimal-digit)
@@ -80,6 +92,17 @@
   (or (and "\u" (hex-quad))
       (and "\U" (hex-quad) (hex-quad))))
 
+
+;; 2.4, lex.trigraph -- low-priority TBD
+;; part of "phase 1", rarely used -- implement later
+
+;; 2.5, lex.pptoken -- see below
+;; depends on several rules that follow
+
+;; 2.6, lex.digraph -- see below
+
+;; 2.7, lex.token -- see below
+;; depends on several rules that follow
 
 ;; 2.8, lex.comment
 (defun c-comment (string &optional (start 0) (end (length string)))
@@ -144,10 +167,11 @@
          (repeat 0 nil (digit))))))
 
 
-;; explore solution to left recursion
-;; simulate (or (and (pp-number) (digit)) (digit))
-(defparameter *pp-start* (cons -1 nil))
-(defrule pp-number
+#|
+ ;; explore solution to left recursion
+ ;; simulate (or (and (pp-number) (digit)) (digit))
+ (defparameter *pp-start* (cons -1 nil))
+ (defrule pp-number
   (:cl
    (progn
      ;;(print (list start *pp-start*))
@@ -218,7 +242,7 @@
        (t
         (let ((*pp-start* (cons start nil)))
           (:parse (or (and (pp-number) (digit)) (digit)))))))))
-
+|#
 #|
  (defparameter *pp-number* nil)
  (defun pp-number (string &OPTIONAL (START 0) (END (LENGTH STRING)))
@@ -239,7 +263,7 @@
       ))
 |#
 
-;; 2.11
+;; 2.11, lex.name
 (defrule nondigit
   (or (ascii-range #\a #\z)
       (ascii-range #\A #\Z)
@@ -256,13 +280,95 @@
 
 ;; left recursion...
 (defrule identifier
+  ;; left recursive
+  #|
   (or> (identifier-nondigit)
        (and (identifier) (identifier-nondigit))
-       (and (identifier) (digit))))
+       (and (identifier) (digit)))
+  |#
+  ;; equivalent
+  (:cl
+   (match-filter (:context) (string start after end)
+       (and (identifier-nondigit) (repeat 0 nil (or (identifier-nondigit) (digit))))
+     (list :identifier (subseq string start after)))))
+;; todo: identify tokens that are keywords or alternate names
 
-;; 2.12 -- see bottom of file
+                                                
+;; 2.12, lex.key -- see below
 
-;; 2.14
+;; 2.13, lex.operators
+
+(defrule preprocessing-op-or-punc
+  ;; sort in an order so longest matches first
+  ;; recognize keywords like and_eq after normal tokenization
+  ;; 57 other tokens remain
+  (or "{"
+      "}"
+      "<:"
+      ":>"
+      "["
+      "]"
+      "<%"
+      "%>"
+      "##"
+      "#"
+      "%:%:"
+      "%:"
+      #\(
+      #\)
+      #\;
+      #\:
+      "..."
+      "?"
+      "::"
+      ";"
+      ":"
+      ".*"
+      "."
+      "++"
+      "+="
+      "+"
+      "->*"
+      "->"
+      "*="
+      "*"
+      "/="
+      "/"
+      "--"
+      "-="
+      "-"
+      "<<="
+      "<<"
+      "<="
+      "<"
+      ">>="
+      ">>"
+      ">="
+      ">"
+      "|="
+      "||"
+      "|"
+      "&="
+      "&&"
+      "&"
+      "^="
+      "^"
+      "%="
+      "%"
+      "~"
+      "!="
+      "!"
+      "=="
+      "="
+      ","))
+      
+
+;; 2.14, lex.literal
+
+;; 2.14.1, lex.literal.kinds -- see below
+
+;; 2.14.2, lex.icon
+
 (defrule nonzero-digit (ascii-range #\1 #\9))
 
 (defrule octal-digit (ascii-range #\0 #\7))
@@ -273,23 +379,48 @@
    (ascii-range #\a #\f)
    (ascii-range #\A #\F)))
 
+;; removed the left-recursions
 (defrule decimal-literal
-  (or (nonzero-digit)
-      (and (decimal-literal) (digit))))
+  (:cl
+   (match-filter (:context) (string start after end)
+       (and (nonzero-digit) (repeat 0 nil (digit)))
+     (parse-integer (subseq string start after)))))
 
 (defrule octal-literal
-  (or #\0
-      (and (octal-literal) (octal-digit))))
+  (:cl
+   (match-filter (:context) (string start after end)
+       (and #\0 (repeat 0 nil (octal-digit)))
+     (parse-integer (subseq string start after) :radix 8))))
 
 (defrule hexadecimal-literal
-  (or (and "0x" (hexadecimal-digit))
-      (and "0X" (hexadecimal-digit))
-      (and (hexadecimal-literal) (hexadecimal-digit))))
+  (:cl
+   (match-filter (:context) (string start after end)
+       (or (and "0x" (repeat 1 nil (hexadecimal-digit)))
+           (and "0X" (repeat 1 nil (hexadecimal-digit))))
+     (parse-integer (subseq string (+ 2 start) after) :radix 16))))
+
+(defrule unsigned-suffix
+  (or #\u #\U))
+
+(defrule long-suffix
+  (or #\l #\L))
+
+(defrule long-long-suffix
+  (or "ll" "LL"))
+
+(defrule integer-suffix
+  ;; tweak the order to get the longest match
+  (or (and (unsigned-suffix) (optional (long-long-suffix)))
+      (and (unsigned-suffix) (optional (long-suffix)))
+      (and (long-long-suffix) (optional (unsigned-suffix)))
+      (and (long-suffix) (optional (unsigned-suffix)))))
 
 (defrule integer-literal
+  ;; again, identify 0x123 as not 0, then "x123"
   (or (and (decimal-literal) (optional (integer-suffix)))
-      (and (octal-literal) (optional (integer-suffix)))
-      (and (hexadecimal-literal) (optional (integer-suffix)))))
+      (and (hexadecimal-literal) (optional (integer-suffix)))
+      (and (octal-literal) (optional (integer-suffix)))))
+
 
 ;; 2.14.3, lex.ccon
 
@@ -348,82 +479,74 @@
       (and (digit-sequence) (exponent-part) (optional (floating-suffix)))))
 
 
-;; --------
+;; 2.14.5, lex.string
 
-;; Integer            = (("0" [xX] HexDigit+) | ("0" OctalDigit*) | ([1-9] Digit*));
-(defrule r-integer
-  (or
-   (:cl
-    (when-match match (:parse (and #\0 (or #\x #\X) (repeat 1 nil (hex-digit))))
-      (parse-integer (subseq string (+ start 2) match) :radix 16)))
-   #|
-   ;; alternate implementation of previous clause
-   (:cl
-    (match-filter (:context) (string start after end)
-        (and #\0 (or #\x #\X) (repeat 1 nil (hex-digit)))
-      (parse-integer (subseq string (+ start 2) after) :radix 16)))
-   |#
-   (:cl
-    (when-match match (:parse (and #\0 (repeat 0 nil (octal-digit))))
-      (parse-integer (subseq string (+ start 1) match) :radix 8)))
-   (:cl
-    (when-match match (:parse (and (ascii-range #\1 #\9) (repeat 0 nil (digit))))
-      (parse-integer (subseq string start match) :radix 10)))))
+(defrule encoding-prefix
+  (or "u8" #\u #\U #\L))
 
-;; ExponentStart      = [Ee] [+-];
-(defrule exponent-start
-  (and (or #\E #\e) (or #\+ #\-)))
+(defrule s-char
+  (or (exception (any-char) (or #\" #\\ slash-n))
+      (escape-sequence)
+      (universal-character-name)))
 
-;; ExponentPart       = [Ee] [+-]? Digit+;
-(defrule exponent-part
-  (and (or #\E #\e)
-       (repeat 0 1 (or #\+ #\-))
-       (repeat 1 nil (digit))))
+(defrule s-char-sequence
+  (repeat 1 nil (s-char)))
 
-;; FractionalConstant = (Digit* "." Digit+) | (Digit+ ".");
-(defrule fractional-constant
-  (or (and (repeat 0 nil (digit)) #\. (repeat 1 nil (digit)))
-      (and (repeat 1 nil (digit)) #\.)))
+;; skip raw strings for now
+;;(defrule string-literal
+;;  (or (and (optional (encoding-prefix)) #\" (optional (s-char-sequence)) #\")
+;;      (and (optional (encoding-prefix)) #\R (raw-string))))
 
-;; FloatingSuffix     = [fF] [lL]? | [lL] [fF]?;
-(defrule floating-suffix
-  (or (and (or #\f #\F) (repeat 0 1 (or #\l #\L)))
-      (and (or #\l #\L) (repeat 0 1 (or #\f #\F)))))
-
-;; IntegerSuffix      = [uU] [lL]? | [lL] [uU]?;
-(defrule integer-suffix
-  (or (and (or #\u #\U) (repeat 0 1 (or #\l #\L)))
-      (and (or #\l #\L) (repeat 0 1 (or #\u #\U)))))
-
-;; LongIntegerSuffix  = [uU] ([lL] [lL]) | ([lL] [lL]) [uU]?;
-(defrule long-integer-suffix
-  (or (and (or #\u #\U) 
-  
-Backslash          = [\\] | "??/";
-EscapeSequence     = Backslash ([abfnrtv?'"] | Backslash | "x" HexDigit+ | OctalDigit OctalDigit? OctalDigit?);
-HexQuad            = HexDigit HexDigit HexDigit HexDigit;
-UniversalChar      = Backslash ("u" HexQuad | "U" HexQuad HexQuad);
-Newline            = "\r\n" | "\n" | "\r";
-PPSpace            = ([ \t\f\v]|("/*"(any\[*]|Newline|("*"+(any\[*/]|Newline)))*"*"+"/"))*;
-Pound              = "#" | "??=" | "%:";
-NonDigit           = [a-zA-Z_$] | UniversalChar;
+(defrule string-literal
+  (and (optional (encoding-prefix)) #\" (optional (s-char-sequence)) #\"))
 
 
-(defrule newline
-    (or
-     (and #\Return #\Linefeed)
-     #\Linefeed
-     #\Return))
+;; 2.14.6, lex.bool -- TBD
+;; 2.14.7, lex.nullptr -- TBD
+;; don't these belong as identifying the tokens?
 
-;; 2.7
+;; 2.14.8, lex.ext -- TBD, low priority
+
+;; 2.14.1 -- impl, relies on TBDs
+(defrule literal
+  ;; move floating-literal before integer-literal to get correct match
+  (or (floating-literal)
+      (integer-literal)
+      (character-literal)
+      (string-literal)
+      ;;(boolean-literal)
+      ;;(pointer-literal)
+      ;;(user-defined-literal)
+      ))
+
+
+;; 2.5, lex.pptoken -- partial impl, has TBDs
+(defrule preprocessing-token
+  (or (header-name)
+      (identifier)
+      (pp-number)
+      (character-literal)
+      ;; skip rarely-used or brand new stuff for now
+      ;;(user-defined-character-literal)
+      (string-literal)
+      ;;(user-defined-string-literal)
+      (preprocessing-op-or-punc)
+      ;;(any-other-non-whitespace)
+       ))
+
+
+;; 2.6 -- impl TBD, partly in 2.12
+;; plan: skip on the proper digraphs for now, only implement the token alternatives listed in 2.12
+
+;; 2.7 -- impl TBD, needs keyword, operator, and punctuator
 (defrule token
-    (or identifier
-        keyword
-        literal
-        operator
-        punctuator))
+    (or (identifier)
+        (keyword)
+        (literal)
+        (operator)
+        (punctuator)))
 
-;; 2.12
+;; 2.12 -- impl TBD
 ;; these apply to full tokens...
 (defrule keywords
   (or "alignas"
