@@ -151,6 +151,7 @@ possible extensions/optimiztions
       (values stop prefix))))
 
 (defmethod cpf ((form string) context env)
+  (declare (ignore env))
   (values
    (typecase context
      (string-context
@@ -163,6 +164,7 @@ possible extensions/optimiztions
    t))
 
 (defmethod cpf ((form character) context env)
+  (declare (ignore env))
   (values
    (with-slots (string start end) context
      `(when (and (< ,start ,end) (char= ,form (char ,string ,start)))
@@ -199,6 +201,7 @@ possible extensions/optimiztions
 
 (defmethod cpf ((form null) context env)
   "always fail without consuming input"
+  (declare (ignore form context env))
   nil)
 
 #| invocation options
@@ -267,6 +270,7 @@ or to allow changes to the rule,
 
 (defmethod cpf-list (car form context env)
   "expand unknown forms as parse calls"
+  (declare (ignore car env))
   ;; issue a warning for some forms?
   ;; e.g. (:keyword ...)
   (with-slots (string start end) context
@@ -274,9 +278,11 @@ or to allow changes to the rule,
       `(,head ,string ,start ,end ,@rest))))
 
 (defmethod cpf-list ((car (eql :parse)) form context env)
+  (declare (ignore car context env))
   (error ":parse not in :cl - ~S" form))
 
 (defmethod cpf-list ((car (eql :context)) form context env)
+  (declare (ignore car context env))
   (error ":context not in :cl - ~S" form))
 
 
@@ -302,6 +308,7 @@ or to allow changes to the rule,
 
 (defmethod cpf-list ((car (eql :cl)) form context env)
   "bind a cpf context and invoke any nested call sites"
+  (declare (ignore car env))
   ;; should this bind a new context?  skip for now...
   (unless (= (length form) 2)
     (error "expected (:cl form), got ~S" form))
@@ -346,6 +353,7 @@ or to allow changes to the rule,
 
 ;; new flat method (less nesting is easier to read?)
 (defmethod cpf-list ((car (eql 'and)) form context env)
+  (declare (ignore car))
   (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:and)
     (return-from cpf-list (slot-value context 'start)))
   (with-slots (string start end) context
@@ -409,6 +417,7 @@ or to allow changes to the rule,
 
 ;; new flat implementation
 (defmethod cpf-list ((car (eql 'or)) form context env)
+  (declare (ignore car))
   (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:or)
     (return-from cpf-list nil))
   (with-slots (string start end) context
@@ -431,6 +440,7 @@ or to allow changes to the rule,
 
 (defmethod cpf-list ((car (eql 'or>)) form context env)
   "return the rule that has the longest match"
+  (declare (ignore car))
   (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:or)
     (return-from cpf-list nil))
   (with-slots (string start end) context
@@ -471,10 +481,12 @@ or to allow changes to the rule,
        (or "c" "d")))
 
 (defmethod cpf-list ((car (eql 'optional)) form context env)
+  (declare (ignore car))
   (cpf (cons 'repeat (cons 0 (cons 1 (cdr form)))) context env))
 
 (defmethod cpf-list ((car (eql 'repeat)) form context env)
   "(repeat min max form) where min is 0 or more and max is an integer or nil for unlimited"
+  (declare (ignore car))
   (with-slots (string start end) context
     (destructuring-bind (min max body) (cdr form)
       (let* ((c (gensym (symbol-name :count-)))
@@ -518,6 +530,7 @@ or to allow changes to the rule,
 
 (defmethod cpf-list ((car (eql 'exception)) form context env)
   "(exception A B) -> match if A matches but B does not"
+  (declare (ignore car))
   (assert (= (length form) 3))
   (with-slots (string start end) context
     (destructuring-bind (pass fail) (cdr form)
@@ -530,6 +543,7 @@ or to allow changes to the rule,
 
 (defmethod cpf-list ((car (eql 'assert)) form context env)
   "(assert A) -> A or an exception if no match"
+  (declare (ignore car))
   (unless (= (length form) 2)
     (error "expected (assert X), got ~A" form))
   (with-slots (string start end) context
