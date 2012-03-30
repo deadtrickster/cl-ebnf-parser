@@ -3,7 +3,29 @@
 ;; developed with n3290.pdf
 ;; a `grep '2\.' $file` should show the overall structure and state of implementation
 
-#|;; translation of Boost's cpp.re|#
+(defstruct pp-token
+  type ;; :identifier, :whitespace, :literal, etc.
+  file ;; what file was it in
+  start ;; what was the first character index
+  end ;; what was the first index after the token
+  string ;; (subseq string start end)
+  value ;; an integer or other representation
+  )
+
+(defparameter *filename* nil
+  "filename to use when creating tokens")
+
+(defun create-token (type string start end &optional value)
+  (make-pp-token
+   :type type
+   :file *filename*
+   :start start
+   :end end
+   :string (subseq string start end)
+   :value value))
+
+
+#|;; for comparison, see Boost's cpp.re|#
 
 (defconstant slash-t #\Tab "C escape: \t; (code-char 9)")
 (defconstant slash-n #\Linefeed "C escape: \n; (code-char 10)")
@@ -137,9 +159,21 @@
 (defrule q-char-sequence
   (repeat 1 nil (q-char)))
 
+(defparameter *enable-header* nil
+  "Section 2.9, header name preprocessing shall only appear within #include...")
+
 (defrule header-name
-  (or (and #\< (h-char-sequence) #\>)
-      (and #\" (q-char-sequence) #\")))
+  (or
+   (:cl
+    (when *enable-header*
+      (match-filter (:context) (string start after end)
+          (and #\< (h-char-sequence) #\>)
+        (create-token :h-include string start after))))
+   (:cl
+    (when *enable-header*
+      (match-filter (:context) (string start after end)
+          (and #\" (q-char-sequence) #\")
+        (create-token :q-include string start after))))))
 
 
 ;; 2.10, lex.ppnumber
@@ -290,8 +324,9 @@
   (:cl
    (match-filter (:context) (string start after end)
        (and (identifier-nondigit) (repeat 0 nil (or (identifier-nondigit) (digit))))
-     (list :identifier (subseq string start after)))))
+     (create-token :identifier string start after))))
 ;; todo: identify tokens that are keywords or alternate names
+;; but this has to happen *after* the preprocessing (for ## splicing, etc.)
 
                                                 
 ;; 2.12, lex.key -- see below
@@ -302,65 +337,68 @@
   ;; sort in an order so longest matches first
   ;; recognize keywords like and_eq after normal tokenization
   ;; 57 other tokens remain
-  (or "{"
-      "}"
-      "<:"
-      ":>"
-      "["
-      "]"
-      "<%"
-      "%>"
-      "##"
-      "#"
-      "%:%:"
-      "%:"
-      #\(
-      #\)
-      #\;
-      #\:
-      "..."
-      "?"
-      "::"
-      ";"
-      ":"
-      ".*"
-      "."
-      "++"
-      "+="
-      "+"
-      "->*"
-      "->"
-      "*="
-      "*"
-      "/="
-      "/"
-      "--"
-      "-="
-      "-"
-      "<<="
-      "<<"
-      "<="
-      "<"
-      ">>="
-      ">>"
-      ">="
-      ">"
-      "|="
-      "||"
-      "|"
-      "&="
-      "&&"
-      "&"
-      "^="
-      "^"
-      "%="
-      "%"
-      "~"
-      "!="
-      "!"
-      "=="
-      "="
-      ","))
+  (exception
+   (or "{"
+       "}"
+       "<:"
+       ":>"
+       "["
+       "]"
+       "<%"
+       "%>"
+       "##"
+       "#"
+       "%:%:"
+       "%:"
+       #\(
+       #\)
+       #\;
+       #\:
+       "..."
+       "?"
+       "::"
+       ";"
+       ":"
+       ".*"
+       "."
+       "++"
+       "+="
+       "+"
+       "->*"
+       "->"
+       "*="
+       "*"
+       "/="
+       "/"
+       "--"
+       "-="
+       "-"
+       "<<="
+       "<<"
+       "<="
+       "<"
+       ">>="
+       ">>"
+       ">="
+       ">"
+       "|="
+       "||"
+       "|"
+       "&="
+       "&&"
+       "&"
+       "^="
+       "^"
+       "%="
+       "%"
+       "~"
+       "!="
+       "!"
+       "=="
+       "="
+       ",")
+   ;; avoid accidentally matching the start of a comment
+   (or "//" "/*")))
       
 
 ;; 2.14, lex.literal
@@ -498,7 +536,14 @@
 ;;      (and (optional (encoding-prefix)) #\R (raw-string))))
 
 (defrule string-literal
-  (and (optional (encoding-prefix)) #\" (optional (s-char-sequence)) #\"))
+  (and (optional (encoding-prefix))
+       ;;(and #\" (optional (s-char-sequence)) #\")))
+       (:cl
+        (match-filter (:context) (string start after end)
+            (and #\" (optional (s-char-sequence)) #\")
+          ;;(print (subseq string start after))
+          (create-token :string string start after)))))
+;;(subseq string (1+ start) (1- after))))))
 
 
 ;; 2.14.6, lex.bool -- TBD
