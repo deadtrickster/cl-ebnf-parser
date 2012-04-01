@@ -41,35 +41,6 @@
       (when (<= (char-code char0) (char-code c) (char-code char1))
         (values (1+ start) c)))))
 
-;; any                = [\t\v\f\r\n\040-\377];
-(defrule any
-  (or
-   slash-t
-   slash-v
-   slash-f
-   slash-r
-   slash-n
-   (ascii-range 32 255)))
-
-;; anyctrl            = [\001-\037];
-(defrule anyctrl
-  (ascii-range 1 31))
-
-;; OctalDigit         = [0-7];
-(defrule octal-digit
-  (ascii-range #\0 #\7))
-
-;; Digit              = [0-9];
-(defrule digit
-  (ascii-range #\0 #\9))
-
-;; HexDigit           = [a-fA-F0-9];
-(defrule hex-digit
-  (or
-   (ascii-range #\a #\f)
-   (ascii-range #\A #\F)
-   (ascii-range #\0 #\9)))
-
 (defmacro when-match (name rule &body body)
   `(let ((,name ,rule))
      (when ,name
@@ -104,6 +75,16 @@
 ;; other source files should handle the other phases
 
 ;; 2.3, lex.charset
+#|
+ (defrule basic-source-character-set
+    (or
+     " " slash-t slash-v slash-f slash-n
+     (ascii-range #\a #\z)
+     (ascii-range #\A #\Z)
+     (ascii-range #\0 #\9)
+     and a bunch of punctuation))
+|#
+
 (defrule hex-quad
   (and (hexadecimal-digit)
        (hexadecimal-digit)
@@ -191,14 +172,17 @@
        (and (pp-number) #\.))
   |#
   ;; equivalent
-  (and
-   (or (and (repeat 0 nil (digit)) #\. (repeat 1 nil (digit)))
-       (and (repeat 1 nil (digit)) #\. (repeat 0 nil (digit)))
-       (repeat 1 nil (digit)))
-   (optional
-    (and (or #\e #\E)
-         (sign)
-         (repeat 0 nil (digit))))))
+  (:cl
+   (match-filter (:context) (string start after end)
+      (and
+       (or (and (repeat 0 nil (digit)) #\. (repeat 1 nil (digit)))
+           (and (repeat 1 nil (digit)) #\. (repeat 0 nil (digit)))
+           (repeat 1 nil (digit)))
+       (optional
+        (and (or #\e #\E)
+             (optional (sign))
+             (repeat 0 nil (digit)))))
+      (create-token :pp-number string start after))))
 
 
 #|
