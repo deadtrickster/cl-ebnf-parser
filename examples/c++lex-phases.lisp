@@ -33,7 +33,15 @@
 
 ;; approximate phase 3
 (defrule whitespace
-  (or (c-comment) (c++-comment) slash-t slash-n slash-v slash-f slash-r " "))
+  (or (c-comment) (c++-comment)
+      (:cl (with-match2 (:context) (string start after val end)
+             (or slash-t slash-n slash-v slash-f slash-r #\Space)
+             (values after
+                     (make-pp-token :type :whitespace
+                                    :file *filename*
+                                    :start start
+                                    :end after
+                                    :value val))))))
 
 
 (defrule c++-lex-phase3
@@ -46,6 +54,10 @@
 /* test */
 void f(int *x);
 ")
+
+;;(defrule c++-lex-phase67
+;;  ;; combine phases 6 and 7?
+;;  (
 
 (defun parse-file (filename)
   (let (str

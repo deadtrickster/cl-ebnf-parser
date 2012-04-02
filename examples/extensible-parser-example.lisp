@@ -18,7 +18,7 @@
 (defmethod print-object ((obj pp-token) stream)
   (if *print-full-pp-token*
       (call-next-method obj stream)
-      (format stream "~%#S(pp-token :type ~S :string ~S~@[ :value ~S~])"
+      (format stream "#S(pp-token :type ~S~@[ :string ~S~]~@[ :value ~S~])"
               (pp-token-type obj)
               (pp-token-string obj)
               (pp-token-value obj))))
@@ -63,6 +63,17 @@
   (destructuring-bind (stringsym startsym aftersym endsym) context-symbols
     (with-slots (string start end) context
       `(let ((,aftersym (cpf-macro ,rule ,context)))
+         (when ,aftersym
+           (let ((,stringsym ,string)
+                 (,startsym ,start)
+                 (,endsym ,end))
+             (declare (ignorable ,stringsym ,startsym ,endsym))
+             ,@body))))))
+
+(defmacro with-match2 (context context-symbols rule &body body)
+  (destructuring-bind (stringsym startsym aftersym valsym endsym) context-symbols
+    (with-slots (string start end) context
+      `(multiple-value-bind (,aftersym ,valsym) (cpf-macro ,rule ,context)
          (when ,aftersym
            (let ((,stringsym ,string)
                  (,startsym ,start)
@@ -124,18 +135,20 @@
     (let ((close (search "*/" string :start2 (+ start 2))))
       (unless close
         (error "unterminated C comment, start: ~A" start))
-      (values (+ close 2) (list :comment (subseq string (+ start 2) close))))))
+      (values (+ close 2) (create-token :comment string (+ start 2) close)))))
 
 (defrule c++-comment
-  (:cl (when *c++-mode*
-         (:parse
-          (and "//"
-               ;; the standard mentions slash-v and slash-f
-               ;; ignore for now since hard to encode
-               ;;(repeat 0 nil (exception (any) (or slash-v slash-f slash-n)))
-               ;;(repeat 0 nil (or slash-v slash-f (exception whitespace slash-n)))
-               (repeat 0 nil (exception (any-char) slash-n))
-               (assert slash-n))))))
+  (:cl
+   (when *c++-mode*
+     (with-match (:context) (string start after end)
+       (and "//"
+            ;; the standard mentions slash-v and slash-f
+            ;; ignore for now since hard to encode
+            ;;(repeat 0 nil (exception (any) (or slash-v slash-f slash-n)))
+            ;;(repeat 0 nil (or slash-v slash-f (exception whitespace slash-n)))
+            (repeat 0 nil (exception (any-char) slash-n))
+            (assert slash-n))
+       (values after (create-token :comment string start after))))))
 
 
 ;; 2.9, lex.header
@@ -332,69 +345,72 @@
   ;; sort in an order so longest matches first
   ;; recognize keywords like and_eq after normal tokenization
   ;; 57 other tokens remain
-  (exception
-   (or "{"
-       "}"
-       "<:"
-       ":>"
-       "["
-       "]"
-       "<%"
-       "%>"
-       "##"
-       "#"
-       "%:%:"
-       "%:"
-       #\(
-       #\)
-       #\;
-       #\:
-       "..."
-       "?"
-       "::"
-       ";"
-       ":"
-       ".*"
-       "."
-       "++"
-       "+="
-       "+"
-       "->*"
-       "->"
-       "*="
-       "*"
-       "/="
-       "/"
-       "--"
-       "-="
-       "-"
-       "<<="
-       "<<"
-       "<="
-       "<"
-       ">>="
-       ">>"
-       ">="
-       ">"
-       "|="
-       "||"
-       "|"
-       "&="
-       "&&"
-       "&"
-       "^="
-       "^"
-       "%="
-       "%"
-       "~"
-       "!="
-       "!"
-       "=="
-       "="
-       ",")
-   ;; avoid accidentally matching the start of a comment
-   (or "//" "/*")))
-      
+  (:cl
+   (with-match (:context) (string start after end)
+     (exception
+      (or "{"
+          "}"
+          "<:"
+          ":>"
+          "["
+          "]"
+          "<%"
+          "%>"
+          "##"
+          "#"
+          "%:%:"
+          "%:"
+          #\(
+          #\)
+          #\;
+          #\:
+          "..."
+          "?"
+          "::"
+          ";"
+          ":"
+          ".*"
+          "."
+          "++"
+          "+="
+          "+"
+          "->*"
+          "->"
+          "*="
+          "*"
+          "/="
+          "/"
+          "--"
+          "-="
+          "-"
+          "<<="
+          "<<"
+          "<="
+          "<"
+          ">>="
+          ">>"
+          ">="
+          ">"
+          "|="
+          "||"
+          "|"
+          "&="
+          "&&"
+          "&"
+          "^="
+          "^"
+          "%="
+          "%"
+          "~"
+          "!="
+          "!"
+          "=="
+          "="
+          ",")
+      ;; avoid accidentally matching the start of a comment
+      (or "//" "/*"))
+     (values after (create-token :punctuation string start after)))))
+   
 
 ;; 2.14, lex.literal
 
@@ -530,15 +546,17 @@
 ;;  (or (and (optional (encoding-prefix)) #\" (optional (s-char-sequence)) #\")
 ;;      (and (optional (encoding-prefix)) #\R (raw-string))))
 
+
 (defrule string-literal
-  (and (optional (encoding-prefix))
-       ;;(and #\" (optional (s-char-sequence)) #\")))
-       (:cl
-        (match-filter (:context) (string start after end)
-            (and #\" (optional (s-char-sequence)) #\")
-          ;;(print (subseq string start after))
-          (create-token :string string start after)))))
-;;(subseq string (1+ start) (1- after))))))
+  (:cl
+   (with-match2 (:context)(string start after val end)
+     (and (optional (encoding-prefix))
+          (:cl
+           (match-filter (:context) (string start after end)
+               (and #\" (optional (s-char-sequence)) #\")
+              (subseq string (1+ start) (1- after)))))
+     (values after (create-token :string string start after val)))))
+
 
 
 ;; 2.14.6, lex.bool -- TBD
