@@ -12,6 +12,17 @@
   value ;; an integer or other representation
   )
 
+(defparameter *print-full-pp-token* nil
+  "print the full (t) or abbreviated (nil) pp-token")
+
+(defmethod print-object ((obj pp-token) stream)
+  (if *print-full-pp-token*
+      (call-next-method obj stream)
+      (format stream "~%#S(pp-token :type ~S :string ~S~@[ :value ~S~])"
+              (pp-token-type obj)
+              (pp-token-string obj)
+              (pp-token-value obj))))
+
 (defparameter *filename* nil
   "filename to use when creating tokens")
 
