@@ -49,12 +49,6 @@
   ;; need to make sure whitespace exists between certain tokens?
   (repeat 0 nil (or (preprocessing-token) (whitespace))))
 
-(c++-lex-phase3 "#define a
-//this is a 123456 test
-/* test */
-void f(int *x);
-")
-
 ;;(defrule c++-lex-phase67
 ;;  ;; combine phases 6 and 7?
 ;;  (
@@ -69,4 +63,8 @@ void f(int *x);
     ;; eventually return the AST, the comment list, and the preproc list
     ;; also return a list of newlines (so line/col can be quickly calculated)
     ;; also return an indication if the parse didn't consume the whole file
-    (c++-lex-phase3 str)))
+    (multiple-value-bind (end val)
+        (c++-lex-phase3 str)
+      (unless (= end (length str))
+        (warn "incomplete parse: ~a of ~a" end (length str)))
+      val)))
