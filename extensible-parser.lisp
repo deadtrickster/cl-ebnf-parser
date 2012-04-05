@@ -78,6 +78,30 @@ possible extensions/optimiztions
    (end :initarg :end :reader array-context-end))
   (:documentation "specialization for parsing an array of tokens"))
 
+(defgeneric make-context (type &key gensym chain))
+
+(defmethod make-context ((type (eql 'string-context)) &key gensym chain)
+  (declare (ignore type))
+  (make-instance
+   'string-context
+   :string (cond
+             (chain
+              (slot-value chain 'string))
+             (gensym
+              (gensym (symbol-name :string-)))
+             (t 'string))
+   :start (cond
+            ;; how to chain? usually want to start with previous rule's end?
+            (gensym
+             (gensym (symbol-name :start-)))
+            (t 'start))
+   :end (cond
+          (chain
+           (slot-value chain 'end))
+          (gensym
+           (gensym (symbol-name :end-)))
+          (t 'end))))
+
 ;; print a warning when a form is not recognized
 ;; in (parse form), form may be incorrect; mark as (parse (cl form)) if intentional
 (define-condition warn-parse-form-not-recognized (style-warning)
@@ -218,10 +242,18 @@ or to allow changes to the rule,
  (name) -> `(funcall (car ,(lookup-rule name) string start end))
 |#
 
+(defgeneric cpf-function-lambda (context)
+  (:documentation "return the nominal lambda list for a given context"))
+
+(defmethod cpf-function-lambda ((obj string-context))
+  (with-slots (string start end) obj
+    `(,string &optional (,start 0) (,end (length ,string)))))
+
 (defmacro defrule (name &body parse-form &environment env)
   (assert (= (length parse-form) 1))
-  `(defun ,name (string &optional (start 0) (end (length string)))
-       ,(cpf (car parse-form) (make-instance 'string-context :string 'string :start 'start :end 'end) env)))
+  (let ((context (make-context 'string-context)))
+    `(defun ,name ,(cpf-function-lambda context)
+       ,(cpf (car parse-form) context env))))
 
 ;; work on a protocol for defrule, allowing compile-time dispatch
 (defvar *parse-rules* (make-hash-table)
@@ -358,16 +390,15 @@ or to allow changes to the rule,
     (return-from cpf-list (slot-value context 'start)))
   (with-slots (string start end) context
     (let* ((args (cdr form))
+           (new-context
+             (make-context 'string-context
+                           :gensym t
+                           :chain context))
            (blocksym (gensym (symbol-name :and-)))
-           (endsym (gensym (symbol-name :end-)))
+           (endsym (slot-value new-context 'start))
            (valsym (gensym (symbol-name :val-)))
            (listsym (gensym (symbol-name :list-)))
            (tailsym (gensym (symbol-name :tail-)))
-           (new-context
-            (make-instance 'string-context
-                           :string string
-                           :start endsym
-                           :end end))
            (inner
             `(let* ((,endsym ,start)
                     ,valsym
@@ -388,7 +419,7 @@ or to allow changes to the rule,
       (pushback `(values ,endsym (cdr ,listsym))
                 last)
       `(block ,blocksym ,inner))))
-      
+
 
 (defrule test-and0 (and "hi" (and)))
 
@@ -490,15 +521,14 @@ or to allow changes to the rule,
   (with-slots (string start end) context
     (destructuring-bind (min max body) (cdr form)
       (let* ((c (gensym (symbol-name :count-)))
-             (e (gensym (symbol-name :end-)))
+             (new-context
+               (make-context 'string-context
+                             :gensym t
+                             :chain context))
+             (e (slot-value new-context 'start))
              (le (gensym (symbol-name :last-end-)))
              (tmp (gensym (symbol-name :temp-)))
-             (v (gensym (symbol-name :val-)))
-             (new-context
-              (make-instance 'string-context
-                             :string string
-                             :start e
-                             :end end)))
+             (v (gensym (symbol-name :val-))))
         (values
          `(do ((,c 0)
                (,e ,start)
