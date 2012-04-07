@@ -47,27 +47,6 @@ if a list,
 (defclass context nil nil
   (:documentation "specialize this class for different types of input"))
 
-(defclass string-context (context)
-  ((string :initarg :string)
-   (start :initarg :start)
-   (end :initarg :end))
-  (:documentation "specialization for parsing a string of text
- While END will often be (length string), making it an explicit parameter should help when the message is known to be shorter.
- For example, many formats encode the message size in a header field."))
-#|
-possible extensions/optimiztions
-- check the length for several rules at once; don't need to check inside
-- merge rules into a character-table lookup
-- don't generate the value list when it will be discarded (e.g. in token strings)
-- flag when start/values can be modified directly
-|#
-
-(defmethod print-object ((obj string-context) stream)
-  (with-slots (string start end) obj
-    (format stream "#.(make-instance 'string-context :string '~A :start '~A :end '~A)~%"
-            string start end)))
-
-
 (defclass list-context (context)
   (top here end)
   (:documentation "specialization for parsing a list of tokens"))
@@ -80,74 +59,26 @@ possible extensions/optimiztions
 
 (defgeneric make-context (type &key gensym chain))
 
-(defmethod make-context ((type (eql 'string-context)) &key gensym chain)
-  (declare (ignore type))
-  (make-instance
-   'string-context
-   :string (cond
-             (chain
-              (slot-value chain 'string))
-             (gensym
-              (gensym (symbol-name :string-)))
-             (t 'string))
-   :start (cond
-            ;; how to chain? usually want to start with previous rule's end?
-            (gensym
-             (gensym (symbol-name :start-)))
-            (t 'start))
-   :end (cond
-          (chain
-           (slot-value chain 'end))
-          (gensym
-           (gensym (symbol-name :end-)))
-          (t 'end))))
-
 (defun chain-context (context)
   (make-context (type-of context) :gensym t :chain context))
+
+(defgeneric get-position (context))
+
 
 (defgeneric make-return-list (context &key gensym chain)
   (:documentation "list of symbols representing the function's return values"))
 ;; if chain is true, the re-use the context's start as the return's end
-
-(defmethod make-return-list ((context string-context) &key gensym chain)
-  (list
-   (cond
-     (chain
-      (slot-value context 'start))
-     (gensym
-      (gensym (symbol-name :end-)))
-     (t 'end))
-   (cond
-     (gensym
-      (gensym (symbol-name :val-)))
-     (t 'val))))
 
 (defun chain-return-list (context)
   (make-return-list context :gensym t :chain t))
 
 (defgeneric return-list-binding (retlist context))
 
-(defmethod return-list-binding (retlist (context string-context))
-  (cons (list (first retlist) (slot-value context 'start))
-        (cdr retlist)))
-
-
 (defgeneric trivial-match (context env)
   (:documentation "return a match without consuming input"))
 
-(defmethod trivial-match ((context string-context) env)
-  (declare (ignore env))
-  (with-slots (string start end) context
-    (declare (ignore string end))
-    `(values ,start nil)))
-
 (defgeneric trivial-fail (context env)
   (:documentation "return a fail, regardless of input"))
-
-(defmethod trivial-fail ((context string-context) env)
-  (declare (ignore context env))
-  `(values nil))
-
 
 ;; print a warning when a form is not recognized
 ;; in (parse form), form may be incorrect; mark as (parse (cl form)) if intentional
@@ -157,56 +88,6 @@ possible extensions/optimiztions
    (lambda (c s)
      (format s "parse form was not recognized: ~A"
              (warn-pfnr-form c)))))
-
-;;;; STRING IMPLEMENTATION
-
-;; rather than guessing, use an explicit quasi-quote-style mechanism
-#|
- (defun cpf-cl-all (form context)
-  "recurse through a normal CL source form, processing sublists as possible parse forms"
-  (if (listp form)
-    (let ((modified nil))
-      (values 
-       (loop for x in form
-          collecting
-            (if (listp x)
-                (multiple-value-bind (exp exp-p) (cpf x context)
-                  (when exp-p
-                    (setf modified t))
-                  exp)
-                x))
-       modified))
-    form))
-
- ;; needs a way to control context chaining when recursing through normal expressions
- (defun cpf-cl-key (form context &optional (key 'parse))
-  "recurse through a normal CL form, processing sublists that begin with KEY as parse forms"
-  (if (listp form)
-      (let ((modified nil))
-        (values
-         (loop for x in form
-            collecting
-              (if (and (listp x) (eql (car x) key))
-                  (multiple-value-bind (exp exp-p) (cpf (cdr x) context)
-                    (if exp-p
-                        (setf modified t)
-                        (warn 'warn-pfnr-form :form exp))
-                    exp)
-                  x))
-         modified))
-      form))
-|#
-
-#|
- (defun match-atom (seq start end atom)
-  (declare (ignore end))
-  (when (equal (elt seq start) atom)
-    (values (1+ start) atom)))
-
- (defmethod cpf (form seq start end)
-  "try to match the atom form in the seq"
-  `(match-atom ,seq ,start ,end ,form))
-|#
 
 #|
  (defmethod cpf-list (car form seq start end)
@@ -221,13 +102,6 @@ possible extensions/optimiztions
                (string= prefix string :start2 start :end2 stop))
       (values stop prefix))))
 
-(defmethod cpf ((form string) (context string-context) env)
-  (declare (ignore env))
-  (values
-   (with-slots (string start end) context
-     `(starts-with ,string ,start ,end ,form))
-   t))
-
 (defmethod cpf ((form string) (context array-context) env)
   (declare (ignore env))
   (values
@@ -236,20 +110,6 @@ possible extensions/optimiztions
         (values ,form (`+ ,start))))
    t))
 
-(defmethod cpf ((form character) (context string-context) env)
-  (declare (ignore env))
-  (values
-   (with-slots (string start end) context
-     `(when (and (< ,start ,end) (char= ,form (char ,string ,start)))
-        (values (1+ ,start) ,form)))
-   t))
-
-#|
- (defmethod cpf ((form list) seq start end)
-  (let ((car (car form)))
-    (if (eql car 'cl)
-        (cpf-list (car form) form seq start end))))
-|#
 (defmethod cpf ((form list) context env)
   (cpf-list (car form) form context env))
 
@@ -293,42 +153,12 @@ or to allow changes to the rule,
 (defgeneric cpf-function-lambda (context)
   (:documentation "return the nominal lambda list for a given context"))
 
-(defmethod cpf-function-lambda ((obj string-context))
-  (with-slots (string start end) obj
-    `(,string &optional (,start 0) (,end (length ,string)))))
-
-(defmacro defrule (name &body parse-form &environment env)
-  (assert (= (length parse-form) 1))
-  (let ((context (make-context 'string-context)))
-    `(defun ,name ,(cpf-function-lambda context)
-       ,(cpf (car parse-form) context env))))
-
-;; work on a protocol for defrule, allowing compile-time dispatch
-(defvar *parse-rules* (make-hash-table)
-  "hashtable of the rules that have been defined.  For each rule name, there is a property list recording possible expansions.  The key :source returns the original form.  Context indicators may return pre-compiled forms.")
-
-#| work-in-progress
- (defun get-parse-rule (key context)
-  "look up (or create) a parse rule for the given key and context"
-  (let* ((props (gethash key *parse-rules*))
-         (nonce (gensym))
-         (result (getf props context nonce)))
-    (assert props)
-    (if (eql result nonce)
-        (let ((source (getf props :source nonce)))
-          (assert (not (eql source nonce)))
-          (setf (getf props context) 
-                
-    
-  )))))
-|#
-
-;; store an alist (or plist) for each key
-;; look up the context (the :form context returns the original source)
-;; save pre-compiled forms in a cons; recompile all forms if the source changes
-;; then the call site can (funcall (car lookup) args)
+(defgeneric insert-function-call (raw-call context)
+  (:documentation "insert parameters from the context to complete the call"))
 
 
+;; the following is why some cpf expansions return (values exp t)
+;; should decide how to clean everything up (add or remove for consistency)
 #|
  (defun cpf-cl-key (form context &optional (key 'parse))
   "recurse through a normal CL form, processing sublists that begin with KEY as parse forms"
@@ -348,14 +178,12 @@ or to allow changes to the rule,
       form))
 |#
 
-(defmethod cpf-list (car form (context string-context) env)
+(defmethod cpf-list (car form context env)
   "expand unknown forms as parse calls"
   (declare (ignore car env))
   ;; issue a warning for some forms?
   ;; e.g. (:keyword ...)
-  (with-slots (string start end) context
-    (destructuring-bind (head &rest rest) form
-      `(,head ,string ,start ,end ,@rest))))
+  (insert-function-call form context))
 
 (defmethod cpf-list ((car (eql :parse)) form context env)
   (declare (ignore car context env))
@@ -395,9 +223,6 @@ or to allow changes to the rule,
   ;; need to wrap and unwrap the argument so (:cl (:parse ...)) works
   (car (expand-nested-parse (cdr form) context)))
 
-(defrule test-cl
-  (:cl (and (:parse "hi"))))
-
 #| original nested method
  (defmethod cpf-list ((car (eql and)) form context)
   "Apply the parse forms in order, returning a list of their results or nil if any do not match."
@@ -435,42 +260,34 @@ or to allow changes to the rule,
 (defmethod cpf-list ((car (eql 'and)) form context env)
   (declare (ignore car))
   (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:and)
-    (return-from cpf-list (slot-value context 'start)))
-  (with-slots (string start end) context
-    (let* ((args (cdr form))
-           (new-context (chain-context context))
-           (blocksym (gensym (symbol-name :and-)))
-           (retlist (chain-return-list new-context))
-           (listsym (gensym (symbol-name :list-)))
-           (tailsym (gensym (symbol-name :tail-)))
-           (inner
-             `(let* (,@(return-list-binding retlist context)
-                    (,listsym (cons nil nil))
-                    (,tailsym ,listsym))))
-           (last (last inner 1)))
-      (dolist (f args)
-        (pushback
-         `(setf (values ,@retlist) ,(cpf f new-context env))
-         last)
-        (pushback
-         `(unless ,(car retlist)
-            (return-from ,blocksym))
-         last)
-        ;; note: assumes a single secondary return value...
-        (pushback
-         `(pushback ,(second retlist) ,tailsym)
-         last))
-      (pushback `(values ,(car retlist) (cdr ,listsym))
-                last)
-      `(block ,blocksym ,inner))))
+    (return-from cpf-list (trivial-match context env)))
+  (let* ((args (cdr form))
+         (new-context (chain-context context))
+         (blocksym (gensym (symbol-name :and-)))
+         (retlist (chain-return-list new-context))
+         (listsym (gensym (symbol-name :list-)))
+         (tailsym (gensym (symbol-name :tail-)))
+         (inner
+           `(let* (,@(return-list-binding retlist context)
+                   (,listsym (cons nil nil))
+                   (,tailsym ,listsym))))
+         (last (last inner 1)))
+    (dolist (f args)
+      (pushback
+       `(setf (values ,@retlist) ,(cpf f new-context env))
+       last)
+      (pushback
+       `(unless ,(car retlist)
+          (return-from ,blocksym))
+       last)
+      ;; note: assumes a single secondary return value...
+      (pushback
+       `(pushback ,(second retlist) ,tailsym)
+       last))
+    (pushback `(values ,(car retlist) (cdr ,listsym))
+              last)
+    `(block ,blocksym ,inner)))
 
-
-(defrule test-and0 (and "hi" (and)))
-
-(defrule test-and (and "hello" " " "world"))
-;;(test-and "hello world")
-
-(defrule test-composition (or (test-and) "no"))
 
 #| original recursive implementation
  (defmethod cpf-list ((car (eql 'or)) form context env)
@@ -497,7 +314,7 @@ or to allow changes to the rule,
     (return-from cpf-list nil))
   (let* ((args (cdr form))
          (blocksym (gensym (symbol-name :or-)))
-         (retlist (cpf-return-list context))
+         (retlist (make-return-list context :gensym t))
          (vlist (cons 'cl:values retlist))
          (inner
            `(let* ,retlist))
@@ -512,46 +329,34 @@ or to allow changes to the rule,
        last))
     `(block ,blocksym ,inner)))
 
-;; note: untested after converting to retlist/bestretlist
 (defmethod cpf-list ((car (eql 'or>)) form context env)
   "return the rule that has the longest match"
   (declare (ignore car))
   (unless (cdr form) ; style tweak, doesn't change runtime, mimics (cl:or)
     (return-from cpf-list nil))
-  (with-slots (string start end) context
-    (let* ((args (cdr form))
-           (blocksym (gensym (symbol-name :or-)))
-           (retlist (cpf-return-list context))
-           (bestretlist (cpf-return-list context))
-           (inner
-             `(let* (,@(return-list-binding retlist context) ,@bestretlist)))
-           (last (last inner 1)))
-      (dolist (f args)
-        (pushback
-         `(setf (values ,retlist) ,(cpf f context env))
-         last)
-        (pushback
-         ;; assumes (car retlist) is a value indicating progress...
-         `(when (and ,(car retlist) (> ,(car retlist) ,(car bestretlist)))
-            (setf (values ,bestretlist) (values ,retlist)))
-         last))
+  (let* ((args (cdr form))
+         (blocksym (gensym (symbol-name :or-)))
+         (retlist (make-return-list context :gensym t))
+         (bestretlist (make-return-list context :gensym t))
+         (inner
+           `(let* (,@(return-list-binding retlist context)
+                   ,@(return-list-binding bestretlist context))))
+         (last (last inner 1)))
+    (dolist (f args)
       (pushback
-       `(when ,(car bestretlist)
-          (values ,@bestretlist))
+       `(setf (values ,@retlist) ,(cpf f context env))
        last)
-      `(block ,blocksym ,inner))))
+      (pushback
+       ;; assumes (car retlist) is a value indicating progress...
+       `(when (and ,(car retlist) (> ,(car retlist) ,(car bestretlist)))
+          (setf (values ,@bestretlist) (values ,@retlist)))
+       last))
+    (pushback
+     `(when ,(car bestretlist)
+        (values ,@bestretlist))
+     last)
+    `(block ,blocksym ,inner)))
 
-
-(defrule test-or0 (or (or) "hi"))
-
-(defrule test-or
-  (or "hello" "world"))
-;; (test-or "hello")
-;; (test-or "world")
-
-(defrule test2
-  (and (or "a" "b")
-       (or "c" "d")))
 
 (defmethod cpf-list ((car (eql 'optional)) form context env)
   (declare (ignore car))
@@ -560,64 +365,53 @@ or to allow changes to the rule,
 (defmethod cpf-list ((car (eql 'repeat)) form context env)
   "(repeat min max form) where min is 0 or more and max is an integer or nil for unlimited"
   (declare (ignore car))
-  (with-slots (string start end) context
-    (destructuring-bind (min max body) (cdr form)
-      (let* ((c (gensym (symbol-name :count-)))
-             (new-context (chain-context context))
-             (retlist (chain-return-list new-context))
-             (le (gensym (symbol-name :last-end-)))
-             (v (gensym (symbol-name :val-))))
-        (values
-         `(do ((,c 0)
-               ,@(return-list-binding retlist context)
-               (,le ,(if (= 0 min)
-                         start
-                         nil))
-               (,v nil))
-              (,(if max
-                    `(or (not ,(car retlist))
-                         (>= ,c ,max))
-                    `(not ,(car retlist)))
-               (when (>= ,c ,min)
-                 (values ,le (reverse ,v))))
-            (setf (values ,@retlist) ,(cpf body new-context env))
-            (when ,(car retlist)
-              (incf ,c)
-              (setf ,le ,(car retlist))
-              (push ,(second retlist) ,v)))
-         t)))))
-
-(defrule test-repeat
-  (repeat 1 nil #\a))
-
-(defrule test-repeat
-  (and (repeat 0 1 #\a)
-       (repeat 1 nil #\b)))    
-
+  (destructuring-bind (min max body) (cdr form)
+    (let* ((c (gensym (symbol-name :count-)))
+           (new-context (chain-context context))
+           (retlist (chain-return-list new-context))
+           (le (gensym (symbol-name :last-end-)))
+           (v (gensym (symbol-name :val-))))
+      (values
+       `(do ((,c 0)
+             ,@(return-list-binding retlist context)
+             (,le ,(if (= 0 min)
+                       (get-position context)
+                       nil))
+             (,v nil))
+            (,(if max
+                  `(or (not ,(car retlist))
+                       (>= ,c ,max))
+                  `(not ,(car retlist)))
+             (when (>= ,c ,min)
+               (values ,le (reverse ,v))))
+          (setf (values ,@retlist) ,(cpf body new-context env))
+          (when ,(car retlist)
+            (incf ,c)
+            (setf ,le ,(car retlist))
+            (push ,(second retlist) ,v)))
+       t))))
 
 (defmethod cpf-list ((car (eql 'exception)) form context env)
   "(exception A B) -> match if A matches but B does not"
   (declare (ignore car))
   (assert (= (length form) 3))
-  (with-slots (string start end) context
-    (destructuring-bind (pass fail) (cdr form)
-      (let* ((retlist (make-return-list context :gensym t)))
-        `(multiple-value-bind ,retlist ,(cpf pass context env)
-           (when ,(car retlist)
-             (unless ,(cpf fail context env)
-               (values ,@retlist))))))))
+  (destructuring-bind (pass fail) (cdr form)
+    (let* ((retlist (make-return-list context :gensym t)))
+      `(multiple-value-bind ,retlist ,(cpf pass context env)
+         (when ,(car retlist)
+           (unless ,(cpf fail context env)
+             (values ,@retlist)))))))
 
 (defmethod cpf-list ((car (eql 'assert)) form context env)
   "(assert A) -> A or an exception if no match"
   (declare (ignore car))
   (unless (= (length form) 2)
     (error "expected (assert X), got ~A" form))
-  (with-slots (string start end) context
-    (let* ((retlist (make-return-list context :gensym t)))
-      `(multiple-value-bind ,retlist ,(cpf (cadr form) context env)
-         (unless ,(car retlist)
-           (error ,(format nil "rule did not match: ~A~%at index ~~A" form) ,start))
-         (values ,@retlist)))))
+  (let* ((retlist (make-return-list context :gensym t)))
+    `(multiple-value-bind ,retlist ,(cpf (cadr form) context env)
+       (unless ,(car retlist)
+         (error ,(format nil "rule did not match: ~A~%at index ~~A" form) ,(get-position context)))
+       (values ,@retlist))))
 
 
 #|
