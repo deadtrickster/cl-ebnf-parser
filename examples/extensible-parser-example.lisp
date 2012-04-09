@@ -148,7 +148,10 @@
             ;;(repeat 0 nil (or slash-v slash-f (exception whitespace slash-n)))
             (repeat 0 nil (exception (any-char) slash-n))
             (assert slash-n))
-       (values after (create-token :comment string start after))))))
+       ;; leave the slash-n as a separate token
+       (decf after)
+       ;; leave out the leading //
+       (values after (create-token :comment string (+ start 2) after))))))
 
 
 ;; 2.9, lex.header
@@ -157,6 +160,7 @@
 
 (defrule h-char-sequence
   (repeat 1 nil (h-char)))
+
 
 (defrule q-char
   (exception (any-char) (or slash-n #\")))
@@ -173,7 +177,10 @@
     (when *enable-header*
       (match-filter (:context) (string start after end)
           (and #\< (h-char-sequence) #\>)
-        (create-token :h-include string start after))))
+        (list
+         (create-token :punctuation string start (1+ start))
+         (create-token :h-include string (1+ start) (1- after))
+         (create-token :punctuation string (1- after) after)))))
    (:cl
     (when *enable-header*
       (match-filter (:context) (string start after end)

@@ -49,6 +49,49 @@
   ;; need to make sure whitespace exists between certain tokens?
   (repeat 0 nil (or (preprocessing-token) (whitespace))))
 
+(defrule c++-lex-phase3-helper
+    (or (preprocessing-token) (whitespace)))
+
+(defun c++-lex-phase3b (string &optional (start 0) (end (length string)))
+  (do ((after start)
+       val
+       (farthest start)
+       vlist
+       ;; simple state machine to detect #include statements
+       (include-state 0))
+      ((not after)
+       (when (> farthest start)
+         (values farthest (reverse vlist))))
+    (let ((*enable-header* (= include-state 2)))
+      (setf (values after val) (c++-lex-phase3-helper string after end)))
+    (when after
+      (setf farthest after)
+      (if (listp val)
+          (setf val
+                (dolist (v val last-val)
+                  (push v vlist)
+                  (setf last-val v)))
+          (push val vlist))
+      (ecase include-state
+        (0 (when (and (equal :punctuation (pp-token-type val))
+                      (string= "#" (pp-token-string val)))
+             (incf include-state)))
+        (1 (cond
+             ((equal :whitespace (pp-token-type val))
+              ;; no change
+              )
+             ((and (equal :identifier (pp-token-type val))
+                   (string= "include" (pp-token-string val)))
+               (incf include-state))
+             (t (setf include-state 0))))
+        (2 (cond
+             ((equal :whitespace (pp-token-type val))
+              ;; no change
+              )
+             (t (setf include-state 0)))
+         ;; and assert that a header was found?
+         )))))
+
 ;;(defrule c++-lex-phase67
 ;;  ;; combine phases 6 and 7?
 ;;  (
@@ -64,7 +107,7 @@
     ;; also return a list of newlines (so line/col can be quickly calculated)
     ;; also return an indication if the parse didn't consume the whole file
     (multiple-value-bind (end val)
-        (c++-lex-phase3 str)
+        (c++-lex-phase3b str)
       (unless (= end (length str))
         (warn "incomplete parse: ~a of ~a" end (length str)))
       val)))
