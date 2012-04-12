@@ -1,7 +1,3 @@
-(defun c++-lex-phase3 (string &optional (start 0) (end (length string)))
-  "approximate phase 3"
-  ())
-
 ;; 2.2 -- impl
 
 ;; phase 1

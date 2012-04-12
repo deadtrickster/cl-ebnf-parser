@@ -6,5 +6,7 @@
   :serial t
   :components ((:file "extensible-parser")
                (:file "string-context")
-               (:file "examples/extensible-parser-example")
-               (:file "examples/c++lex-phases")))
+               (:file "examples/cpp/lex")
+               (:file "examples/cpp/cpp")
+               (:file "examples/cpp/phases")
+               ))

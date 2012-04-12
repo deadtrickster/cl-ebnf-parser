@@ -29,6 +29,30 @@ if a list,
   (
 |#
 
+#|
+parser protocol
+args: (sequence start end)
+return: nil or (next-start value)
+
+transform protocol similar to Boost::Spirit
+see http://www.boost.org/doc/libs/1_48_0/libs/spirit/doc/html/spirit/qi/reference/action.html
+args: (sequence start next-start end value)
+return: nil or (next-start value)
+note that the fancy return-value isn't necessary; just wrap the parser...
+
+old protocol had start
+|#
+
+#|
+definition: A ``parse-form'' is a shorthand notation for specifying parsers; it leaves out the (seq start end) parameters used to pass stream context.
+
+the parse-form (x y z) is expanded to (x seq start end y z)
+a parse-form atom is taken to be a literal token
+|#
+
+;; parser compiler similar to "On Lisp" section 19.5
+;; use generic functions to register actions
+
 ;;;; PROTOCOL
 
 (defgeneric cpf (form context env)
